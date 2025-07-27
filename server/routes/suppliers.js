@@ -1,5 +1,6 @@
 import express from 'express'
 import Supplier from '../models/Supplier.js'
+import { auth } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -47,12 +48,70 @@ router.get('/', async (req, res) => {
   }
 })
 
+// Get orders from vendors in the same pincode area
+router.get('/orders', auth, async (req, res) => {
+  try {
+    console.log('🔍 Supplier orders request - User from token:', req.user)
+
+    const userId = req.user?.id
+    const userType = req.user?.type
+
+    if (!userId || userType !== 'supplier') {
+      return res.status(401).json({
+        success: false,
+        error: 'Supplier authentication required'
+      })
+    }
+
+    // Get supplier details including pincode using the user ID
+    const supplier = await Supplier.findById(userId)
+    console.log('🔍 Found supplier:', supplier ? 'YES' : 'NO')
+
+    if (!supplier) {
+      return res.status(404).json({
+        success: false,
+        error: 'Supplier not found'
+      })
+    }
+
+    console.log('🔍 Supplier pincode:', supplier.pincode)
+
+    // Import Order and Vendor models
+    const Order = (await import('../models/Order.js')).default
+    const Vendor = (await import('../models/Vendor.js')).default
+
+    // Find vendors in the same pincode area
+    const vendorsInArea = await Vendor.find({ pincode: supplier.pincode })
+    console.log('🔍 Vendors in pincode area:', vendorsInArea.length)
+    const vendorPhones = vendorsInArea.map(vendor => vendor.phone)
+
+    // Find orders from these vendors
+    const orders = await Order.find({
+      vendorPhone: { $in: vendorPhones }
+    }).sort({ createdAt: -1 })
+
+    console.log('🔍 Found orders:', orders.length)
+
+    res.json({
+      success: true,
+      data: orders,
+      message: `Found ${orders.length} orders from your pincode area (${supplier.pincode})`
+    })
+  } catch (error) {
+    console.error('Error fetching supplier orders:', error)
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
 // Get supplier by ID
 router.get('/:id', async (req, res) => {
   try {
     const supplier = await Supplier.findById(req.params.id)
       .select('-paymentDetails.bankAccount') // Exclude sensitive data
-    
+
     if (!supplier) {
       return res.status(404).json({
         success: false,
@@ -134,7 +193,7 @@ router.put('/:id', async (req, res) => {
 router.patch('/:id/status', async (req, res) => {
   try {
     const { status } = req.body
-    
+
     if (!['active', 'inactive', 'suspended', 'pending_verification'].includes(status)) {
       return res.status(400).json({
         success: false,
@@ -171,7 +230,7 @@ router.patch('/:id/status', async (req, res) => {
 router.put('/:id/inventory', async (req, res) => {
   try {
     const { inventory } = req.body
-    
+
     const supplier = await Supplier.findByIdAndUpdate(
       req.params.id,
       { inventory },
@@ -201,7 +260,7 @@ router.put('/:id/inventory', async (req, res) => {
 router.post('/:id/inventory', async (req, res) => {
   try {
     const supplier = await Supplier.findById(req.params.id)
-    
+
     if (!supplier) {
       return res.status(404).json({
         success: false,
@@ -228,7 +287,7 @@ router.post('/:id/inventory', async (req, res) => {
 router.patch('/:id/inventory/:itemId', async (req, res) => {
   try {
     const { availability, price } = req.body
-    
+
     const supplier = await Supplier.findById(req.params.id)
     if (!supplier) {
       return res.status(404).json({
@@ -268,7 +327,7 @@ router.get('/location/:city/:area?', async (req, res) => {
     const { city, area } = req.params
     const suppliers = await Supplier.findByLocation(city, area)
       .select('-paymentDetails.bankAccount')
-    
+
     res.json({
       success: true,
       data: suppliers
@@ -285,7 +344,7 @@ router.get('/location/:city/:area?', async (req, res) => {
 router.post('/search/items', async (req, res) => {
   try {
     const { items } = req.body
-    
+
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({
         success: false,
@@ -295,7 +354,7 @@ router.post('/search/items', async (req, res) => {
 
     const suppliers = await Supplier.findByItems(items)
       .select('-paymentDetails.bankAccount')
-    
+
     res.json({
       success: true,
       data: suppliers
@@ -312,7 +371,7 @@ router.post('/search/items', async (req, res) => {
 router.post('/:id/stats', async (req, res) => {
   try {
     const { orderValue, deliveryTime } = req.body
-    
+
     const supplier = await Supplier.findById(req.params.id)
     if (!supplier) {
       return res.status(404).json({
@@ -340,7 +399,7 @@ router.get('/:id/dashboard', async (req, res) => {
   try {
     const supplier = await Supplier.findById(req.params.id)
       .select('-paymentDetails.bankAccount')
-    
+
     if (!supplier) {
       return res.status(404).json({
         success: false,
@@ -390,7 +449,7 @@ router.get('/:id/dashboard', async (req, res) => {
 router.post('/:id/verify', async (req, res) => {
   try {
     const { gstNumber, licenseNumber, verifiedBy } = req.body
-    
+
     const supplier = await Supplier.findByIdAndUpdate(
       req.params.id,
       {
@@ -427,7 +486,7 @@ router.post('/:id/verify', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const supplier = await Supplier.findById(req.params.id)
-    
+
     if (!supplier) {
       return res.status(404).json({
         success: false,

@@ -14,7 +14,8 @@ const VendorAuth = () => {
         phone: '',
         password: '',
         businessName: '',
-        address: ''
+        address: '',
+        pincode: ''
     })
 
     const navigate = useNavigate()
@@ -186,6 +187,25 @@ const VendorAuth = () => {
                                             rows={3}
                                             className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors resize-none text-gray-900 placeholder-gray-400"
                                             placeholder="Enter your business address"
+                                        />
+                                    </div>
+
+                                    {/* Pincode */}
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            <MapPin className="w-4 h-4 inline mr-2" />
+                                            Pincode
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="pincode"
+                                            value={formData.pincode}
+                                            onChange={handleInputChange}
+                                            required
+                                            maxLength="6"
+                                            pattern="[0-9]{6}"
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-gray-900 placeholder-gray-400"
+                                            placeholder="Enter 6-digit pincode"
                                         />
                                     </div>
                                 </>

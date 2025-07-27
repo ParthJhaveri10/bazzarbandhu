@@ -40,6 +40,19 @@ const vendorSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    pincode: {
+        type: String,
+        required: function () {
+            return this.isNew; // Only required for new documents
+        },
+        trim: true,
+        validate: {
+            validator: function (v) {
+                return !v || /^\d{6}$/.test(v); // Allow empty for existing users, validate format if provided
+            },
+            message: 'Pincode must be 6 digits'
+        }
+    },
     isVerified: {
         type: Boolean,
         default: false

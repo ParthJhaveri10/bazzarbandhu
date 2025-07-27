@@ -13,7 +13,8 @@ const useAuthStore = create(
             login: async (credentials) => {
                 set({ loading: true, error: null })
                 try {
-                    const response = await fetch('/api/auth/login', {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+                    const response = await fetch(`${API_URL}/auth/login`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -56,7 +57,8 @@ const useAuthStore = create(
             signup: async (userData) => {
                 set({ loading: true, error: null })
                 try {
-                    const response = await fetch('/api/auth/signup', {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+                    const response = await fetch(`${API_URL}/auth/signup`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -68,6 +70,7 @@ const useAuthStore = create(
                             password: userData.password,
                             businessName: userData.businessName,
                             address: userData.address,
+                            pincode: userData.pincode,
                             type: userData.type || 'vendor'
                         })
                     })
@@ -103,7 +106,7 @@ const useAuthStore = create(
             logout: () => {
                 // Clear token from localStorage
                 localStorage.removeItem('authToken')
-                
+
                 set({
                     user: null,
                     isAuthenticated: false,
@@ -117,7 +120,8 @@ const useAuthStore = create(
                 if (!token) return false
 
                 try {
-                    const response = await fetch('/api/auth/verify', {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+                    const response = await fetch(`${API_URL}/auth/verify`, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${token}`,

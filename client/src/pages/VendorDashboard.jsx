@@ -24,7 +24,7 @@ import {
 const VendorDashboard = () => {
   const [showOrderForm, setShowOrderForm] = useState(false)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
-  const { orders, getOrdersByVendor } = useOrderStore()
+  const { orders, getOrdersByVendor, fetchOrders } = useOrderStore()
   const { joinVendorRoom, leaveVendorRoom } = useSocket()
   const { t } = useLanguage()
   const { user, logout } = useAuthStore()
@@ -33,6 +33,11 @@ const VendorDashboard = () => {
   // Use authenticated vendor's phone from user object
   const vendorPhone = user?.phone || ''
   const vendorOrders = vendorPhone ? getOrdersByVendor(vendorPhone) : []
+
+  useEffect(() => {
+    // Fetch orders when component mounts
+    fetchOrders()
+  }, [fetchOrders])
 
   useEffect(() => {
     if (vendorPhone) {

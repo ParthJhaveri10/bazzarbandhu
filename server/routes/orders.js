@@ -1,6 +1,8 @@
 import express from 'express'
 import Order from '../models/Order.js'
 import Pool from '../models/Pool.js'
+import Vendor from '../models/Vendor.js'
+import { auth } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -52,7 +54,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const order = await Order.findById(req.params.id).populate('poolId')
-    
+
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -95,16 +97,109 @@ router.post('/', async (req, res) => {
   }
 })
 
+// Create new voice order with authentication
+router.post('/create', auth, async (req, res) => {
+  try {
+    const { transcript, language, items, total, currency, status } = req.body
+
+    // Get user info from auth middleware
+    const user = req.user
+
+    console.log('🔍 Debug - User from token:', JSON.stringify(user, null, 2))
+    console.log('🔍 Debug - User type:', user.type)
+    console.log('🔍 Debug - Type comparison:', user.type !== 'vendor')
+
+    if (!user || user.type !== 'vendor') {
+      console.log('❌ Access denied - User type check failed')
+      return res.status(403).json({
+        success: false,
+        error: 'Only vendors can create orders',
+        debug: {
+          userExists: !!user,
+          userType: user?.type,
+          expectedType: 'vendor'
+        }
+      })
+    }
+
+    // Fetch full vendor details from database to get phone number
+    const vendor = await Vendor.findById(user.id)
+    if (!vendor) {
+      console.log('❌ Vendor not found in database')
+      return res.status(404).json({
+        success: false,
+        error: 'Vendor not found'
+      })
+    }
+
+    console.log('👤 Full vendor details:', {
+      id: vendor._id,
+      name: vendor.name,
+      phone: vendor.phone,
+      email: vendor.email
+    })
+
+    // Transform items to match Order model structure
+    const transformedItems = items.map(item => ({
+      item: item.item,
+      quantity: item.quantity,
+      unit: item.unit || 'kg',
+      estimatedPrice: parseFloat(item.price_per_unit) || 0
+    }))
+
+    // Create order with voice-specific data
+    const orderData = {
+      vendorPhone: vendor.phone || '1234567890', // Use actual vendor phone
+      items: transformedItems,
+      location: {
+        address: vendor.address || 'Voice Order Location',
+        city: vendor.city || 'Unknown',
+        area: vendor.area || 'Unknown'
+      },
+      status: status || 'pending',
+      transcript: transcript,
+      estimatedValue: parseFloat(total) || 0,
+      actualValue: parseFloat(total) || 0,
+      metadata: {
+        language: language,
+        currency: currency,
+        voiceOrder: true,
+        vendorId: vendor._id
+      }
+    }
+
+    const order = new Order(orderData)
+    await order.save()
+
+    // Emit real-time update
+    if (req.app.locals.io) {
+      req.app.locals.io.emitOrderUpdate(order)
+    }
+
+    res.status(201).json({
+      success: true,
+      data: order,
+      message: 'Voice order created successfully'
+    })
+  } catch (error) {
+    console.error('Error creating voice order:', error)
+    res.status(400).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
 // Update order status
 router.patch('/:id', async (req, res) => {
   try {
     const { status, supplierNotes, deliveryNotes } = req.body
-    
+
     const order = await Order.findByIdAndUpdate(
       req.params.id,
-      { 
-        status, 
-        supplierNotes, 
+      {
+        status,
+        supplierNotes,
         deliveryNotes,
         ...(status === 'delivered' && { 'metadata.deliveredAt': new Date() })
       },
@@ -139,7 +234,7 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
-    
+
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -199,7 +294,7 @@ router.get('/vendor/:phone', async (req, res) => {
 router.get('/stats/overview', async (req, res) => {
   try {
     const stats = await Order.getStats()
-    
+
     const totalOrders = await Order.countDocuments()
     const totalValue = await Order.aggregate([
       { $group: { _id: null, total: { $sum: '$estimatedValue' } } }

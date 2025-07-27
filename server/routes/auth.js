@@ -23,12 +23,19 @@ const generateToken = (user) => {
 // Signup route
 router.post('/signup', async (req, res) => {
     try {
-        const { name, email, phone, password, businessName, address, type } = req.body
+        const { name, email, phone, password, businessName, address, pincode, type } = req.body
 
         // Validate required fields
-        if (!name || !email || !phone || !password || !businessName || !address || !type) {
+        if (!name || !email || !phone || !password || !businessName || !address || !pincode || !type) {
             return res.status(400).json({
                 message: 'All fields are required'
+            })
+        }
+
+        // Validate pincode format
+        if (!/^\d{6}$/.test(pincode)) {
+            return res.status(400).json({
+                message: 'Pincode must be 6 digits'
             })
         }
 
@@ -66,7 +73,8 @@ router.post('/signup', async (req, res) => {
             phone,
             password,
             businessName,
-            address
+            address,
+            pincode
         }
 
         const user = new Model(userData)

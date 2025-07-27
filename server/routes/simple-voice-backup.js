@@ -16,7 +16,7 @@ router.get('/health', (req, res) => {
 
 // Configure OpenAI
 const openai = new OpenAI({
-  apiKey: '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'
+  apiKey: process.env.OPENAI_API_KEY
 })
 
 // Configure multer for file uploads
@@ -30,7 +30,12 @@ const upload = multer({
 // Simple voice processing endpoint
 router.post('/transcribe', upload.single('audio'), async (req, res) => {
   console.log('🎤 Simple voice processing request received')
-  
+
+  // Configure OpenAI (moved inside route to ensure env vars are loaded)
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+  })
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -48,13 +53,13 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     // Step 1: Transcribe with OpenAI Whisper
     console.log('🔄 Starting OpenAI Whisper transcription...')
-    
+
     // Create a new filename with .wav extension to help OpenAI recognize it
     const wavFilePath = req.file.path + '.wav'
     fs.copyFileSync(req.file.path, wavFilePath)
-    
+
     console.log('📝 Created .wav copy at:', wavFilePath)
-    
+
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(wavFilePath),
       model: 'whisper-1',
@@ -64,9 +69,9 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     const transcript = transcription.text
     const language = transcription.language || 'hindi'
-    const confidence = transcription.segments ? 
+    const confidence = transcription.segments ?
       transcription.segments.reduce((acc, seg) => acc + seg.avg_logprob, 0) / transcription.segments.length : 0.8
-    
+
     console.log(`✅ Transcript: ${transcript}`)
     console.log(`✅ Language detected: ${language}`)
     console.log(`✅ Confidence: ${confidence}`)
@@ -112,12 +117,12 @@ Common items and prices (₹/kg):
       console.log('❌ Failed to parse GPT response, using fallback')
       orderData = {
         items: [
-          { 
-            quantity: 1, 
-            unit: 'item', 
-            item: 'miscellaneous', 
+          {
+            quantity: 1,
+            unit: 'item',
+            item: 'miscellaneous',
             hindi: 'विविध',
-            price_per_unit: 50 
+            price_per_unit: 50
           }
         ],
         total: 50,
@@ -163,10 +168,10 @@ Common items and prices (₹/kg):
       console.log('❌ Failed to parse GPT response, using fallback')
       orderData = {
         items: [
-          { 
-            item: 'mixed_items', 
+          {
+            item: 'mixed_items',
             hindi: transcript,
-            quantity: 1, 
+            quantity: 1,
             unit: 'order',
             price_per_unit: 100
           }
@@ -193,7 +198,7 @@ Common items and prices (₹/kg):
 
   } catch (error) {
     console.error('❌ Simple voice processing error:', error)
-    
+
     // Clean up files on error
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path)
@@ -202,7 +207,7 @@ Common items and prices (₹/kg):
     if (wavFilePath && fs.existsSync(wavFilePath)) {
       fs.unlinkSync(wavFilePath)
     }
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to process voice order',

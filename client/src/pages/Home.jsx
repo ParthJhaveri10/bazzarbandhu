@@ -41,11 +41,12 @@ const Home = () => {
   const [showSuccess, setShowSuccess] = useState(false)
   const [audioURL, setAudioURL] = useState('')
   const [audioBlob, setAudioBlob] = useState(null)
-  
+
   // Voice processing results
   const [transcription, setTranscription] = useState('')
   const [processedOrder, setProcessedOrder] = useState(null)
   const [processingError, setProcessingError] = useState('')
+  const [isSendingOrder, setIsSendingOrder] = useState(false)
 
   // Refs
   const mediaRecorderRef = useRef(null)
@@ -71,7 +72,7 @@ const Home = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      
+
       // Try to use audio/wav if supported, otherwise fall back to webm
       let options = { mimeType: 'audio/wav' }
       if (!MediaRecorder.isTypeSupported(options.mimeType)) {
@@ -80,7 +81,7 @@ const Home = () => {
           options = { mimeType: 'audio/webm' }
         }
       }
-      
+
       mediaRecorderRef.current = new MediaRecorder(stream, options)
       audioChunksRef.current = []
 
@@ -92,14 +93,14 @@ const Home = () => {
         // Use the same type as MediaRecorder to ensure compatibility
         const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm'
         console.log('🎵 MediaRecorder mimeType:', mimeType)
-        
+
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
         console.log('🎵 Created audio blob:', {
           size: audioBlob.size,
           type: audioBlob.type,
           chunks: audioChunksRef.current.length
         })
-        
+
         const audioURL = URL.createObjectURL(audioBlob)
         setAudioURL(audioURL)
         setAudioBlob(audioBlob)
@@ -146,10 +147,10 @@ const Home = () => {
       type: audioBlob.type,
       lastModified: audioBlob.lastModified || 'N/A'
     })
-    
+
     try {
       const formData = new FormData()
-      
+
       // Use appropriate filename extension based on audio type
       let filename = 'order.webm'
       if (audioBlob.type.includes('wav')) {
@@ -161,9 +162,9 @@ const Home = () => {
       } else if (audioBlob.type.includes('opus')) {
         filename = 'order.opus'
       }
-      
+
       console.log('📎 Using filename:', filename, 'for type:', audioBlob.type)
-      
+
       formData.append('audio', audioBlob, filename)
       formData.append('vendorPhone', user.phone || '+919876543210')
       formData.append('location', 'Mumbai, India')
@@ -177,9 +178,10 @@ const Home = () => {
         }
       }
 
-      console.log('📤 Sending request to /api/simple-voice/transcribe')
+      console.log('📤 Sending request to /simple-voice/transcribe')
 
-      const response = await fetch('/api/simple-voice/transcribe', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${API_URL}/simple-voice/transcribe`, {
         method: 'POST',
         body: formData
       })
@@ -199,7 +201,7 @@ const Home = () => {
           console.log('🌐 Language detected:', result.language)
           console.log('🎯 Confidence:', result.confidence)
           console.log('📦 Order data:', result.orderData)
-          
+
           // Store transcription and order results
           setTranscription(result.transcript)
           setProcessedOrder({
@@ -244,6 +246,83 @@ const Home = () => {
       setProcessingError(error.message || 'Failed to process your order. Please try again.')
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  // Send processed order to vendor dashboard
+  const sendToDashboard = async () => {
+    if (!processedOrder || !user || user.type !== 'vendor') {
+      setProcessingError('Unable to send order: Invalid data or unauthorized')
+      return
+    }
+
+    setIsSendingOrder(true)
+    setProcessingError('')
+
+    try {
+      const token = localStorage.getItem('authToken')
+      console.log('🔐 Token check:', token ? 'Token exists' : 'No token found')
+      console.log('👤 User data:', user)
+      console.log('📦 Order data:', processedOrder)
+
+      if (!token) {
+        setProcessingError('No authentication token found. Please login again.')
+        setIsSendingOrder(false)
+        return
+      }
+
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      console.log('📡 Sending to:', `${API_URL}/orders/create`)
+
+      const response = await fetch(`${API_URL}/orders/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          transcript: transcription,
+          language: processedOrder.language,
+          items: processedOrder.items,
+          total: processedOrder.total,
+          currency: processedOrder.currency || '₹',
+          vendorId: user.id,
+          status: 'pending'
+        })
+      })
+
+      const result = await response.json()
+      console.log('📨 Response status:', response.status)
+      console.log('📄 Response data:', result)
+
+      if (response.ok) {
+        console.log('✅ Order sent to dashboard successfully:', result)
+        setShowSuccess(true)
+
+        // Clear the processed order after successful submission
+        setProcessedOrder(null)
+        setTranscription('')
+        clearRecording()
+
+        setTimeout(() => {
+          setShowSuccess(false)
+        }, 3000)
+      } else {
+        console.error('❌ Failed to send order:', result)
+        if (response.status === 401) {
+          setProcessingError('Authentication failed. Please login again.')
+          // Optionally redirect to login
+          // logout()
+          // navigate('/auth/vendor')
+        } else {
+          setProcessingError(`Failed to send order: ${result.error || result.message || 'Unknown error'}`)
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error sending order to dashboard:', error)
+      setProcessingError(`Error: ${error.message || 'Failed to send order to dashboard'}`)
+    } finally {
+      setIsSendingOrder(false)
     }
   }
 
@@ -574,7 +653,7 @@ const Home = () => {
               <span className="mr-2">🎯</span>
               Voice Transcription & Order
             </h4>
-            
+
             {transcription && (
               <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 mb-4">
                 <p className="text-gray-700 text-lg italic">"{transcription}"</p>
@@ -620,7 +699,43 @@ const Home = () => {
                 )}
               </div>
             )}
-            
+
+            {/* Send to Dashboard Button */}
+            {user && user.type === 'vendor' && processedOrder?.items && processedOrder.items.length > 0 && (
+              <div className="mt-6 flex justify-center space-x-4">
+                <button
+                  onClick={sendToDashboard}
+                  disabled={isSendingOrder}
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-8 py-3 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 disabled:hover:scale-100 flex items-center space-x-3"
+                >
+                  {isSendingOrder ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Sending to Dashboard...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Package className="w-5 h-5" />
+                      <span>Send to Dashboard</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Debug Button - Remove after testing */}
+                <button
+                  onClick={() => {
+                    const token = localStorage.getItem('authToken')
+                    console.log('Debug - Token:', token ? 'EXISTS' : 'MISSING')
+                    console.log('Debug - User:', user)
+                    console.log('Debug - User type:', user?.type)
+                  }}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm"
+                >
+                  Debug Auth
+                </button>
+              </div>
+            )}
+
             {processingError && (
               <div className="p-4 bg-red-50 rounded-xl border border-red-200">
                 <p className="text-red-700">Error: {processingError}</p>

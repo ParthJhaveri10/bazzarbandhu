@@ -14,11 +14,6 @@ router.get('/health', (req, res) => {
   })
 })
 
-// Configure OpenAI
-const openai = new OpenAI({
-  apiKey: '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'
-})
-
 // Configure multer for file uploads
 const upload = multer({
   dest: 'uploads/',
@@ -30,7 +25,12 @@ const upload = multer({
 // Simple voice processing endpoint
 router.post('/transcribe', upload.single('audio'), async (req, res) => {
   console.log('🎤 Simple voice processing request received')
-  
+
+  // Configure OpenAI (moved inside route to ensure env vars are loaded)
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+  })
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -48,13 +48,13 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     // Step 1: Transcribe with OpenAI Whisper
     console.log('🔄 Starting OpenAI Whisper transcription...')
-    
+
     // Create a new filename with .wav extension to help OpenAI recognize it
     const wavFilePath = req.file.path + '.wav'
     fs.copyFileSync(req.file.path, wavFilePath)
-    
+
     console.log('📝 Created .wav copy at:', wavFilePath)
-    
+
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(wavFilePath),
       model: 'whisper-1',
@@ -64,9 +64,9 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     const transcript = transcription.text
     const language = transcription.language || 'hindi'
-    const confidence = transcription.segments ? 
+    const confidence = transcription.segments ?
       transcription.segments.reduce((acc, seg) => acc + seg.avg_logprob, 0) / transcription.segments.length : 0.8
-    
+
     console.log(`✅ Transcript: ${transcript}`)
     console.log(`✅ Language detected: ${language}`)
     console.log(`✅ Confidence: ${confidence}`)
@@ -125,7 +125,7 @@ Example: "मुझे दो किलो आलू, चार किलो प
     try {
       const gptResponse = orderCompletion.choices[0].message.content.trim()
       console.log('🤖 GPT Raw Response:', gptResponse)
-      
+
       // Clean the response to extract JSON if wrapped in markdown or extra text
       let jsonString = gptResponse
       if (gptResponse.includes('```json')) {
@@ -133,23 +133,23 @@ Example: "मुझे दो किलो आलू, चार किलो प
       } else if (gptResponse.includes('```')) {
         jsonString = gptResponse.split('```')[1].split('```')[0].trim()
       }
-      
+
       orderData = JSON.parse(jsonString)
       console.log('✅ Parsed order successfully:', orderData)
-      
+
       // Validate the parsed data
       if (!orderData.items || !Array.isArray(orderData.items)) {
         throw new Error('Invalid items array in response')
       }
-      
+
     } catch (parseError) {
       console.log('❌ Failed to parse GPT response:', parseError.message)
       console.log('🔄 Raw GPT response was:', orderCompletion.choices[0].message.content)
-      
+
       // Enhanced fallback - try to extract some info from the transcript
       const fallbackItems = []
       const transcript_lower = transcript.toLowerCase()
-      
+
       // Look for common Hindi vegetables
       const vegetables = [
         { hindi: 'आलू', english: 'potato', price: 30 },
@@ -158,7 +158,7 @@ Example: "मुझे दो किलो आलू, चार किलो प
         { hindi: 'मिर्ची', english: 'chili', price: 100 },
         { hindi: 'गाजर', english: 'carrot', price: 45 }
       ]
-      
+
       vegetables.forEach(veg => {
         if (transcript_lower.includes(veg.hindi)) {
           fallbackItems.push({
@@ -170,17 +170,17 @@ Example: "मुझे दो किलो आलू, चार किलो प
           })
         }
       })
-      
+
       if (fallbackItems.length === 0) {
         fallbackItems.push({
-          quantity: 1, 
-          unit: 'item', 
-          item: 'groceries', 
+          quantity: 1,
+          unit: 'item',
+          item: 'groceries',
           hindi: 'किराना',
-          price_per_unit: 100 
+          price_per_unit: 100
         })
       }
-      
+
       orderData = {
         items: fallbackItems,
         total: fallbackItems.reduce((sum, item) => sum + (item.quantity * item.price_per_unit), 0),
@@ -210,7 +210,7 @@ Example: "मुझे दो किलो आलू, चार किलो प
 
   } catch (error) {
     console.error('❌ Simple voice processing error:', error)
-    
+
     // Clean up files on error
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path)
@@ -219,7 +219,7 @@ Example: "मुझे दो किलो आलू, चार किलो प
     if (wavFilePath && fs.existsSync(wavFilePath)) {
       fs.unlinkSync(wavFilePath)
     }
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to process voice order',

@@ -21,12 +21,12 @@ const useOrderStore = create(devtools((set, get) => ({
       set({ loading: true })
       const response = await api.post('/orders', orderData)
       const newOrder = response.data
-      
+
       set((state) => ({
         orders: [...state.orders, newOrder],
         loading: false
       }))
-      
+
       toast.success('Order added successfully!')
       return newOrder
     } catch (error) {
@@ -40,7 +40,9 @@ const useOrderStore = create(devtools((set, get) => ({
     try {
       set({ loading: true })
       const response = await api.get('/orders')
-      set({ orders: response.data, loading: false })
+      // Handle the server response format: { success: true, data: orders, pagination: {...} }
+      const orders = response.data?.data || response.data || []
+      set({ orders: orders, loading: false })
     } catch (error) {
       set({ error: error.message, loading: false })
       console.error('Failed to fetch orders:', error)
@@ -51,13 +53,13 @@ const useOrderStore = create(devtools((set, get) => ({
     try {
       const response = await api.patch(`/orders/${orderId}`, { status })
       const updatedOrder = response.data
-      
+
       set((state) => ({
-        orders: state.orders.map(order => 
+        orders: state.orders.map(order =>
           order._id === orderId ? updatedOrder : order
         )
       }))
-      
+
       toast.success('Order status updated')
       return updatedOrder
     } catch (error) {
@@ -81,7 +83,7 @@ const useOrderStore = create(devtools((set, get) => ({
 
   updatePool: (poolData) => {
     set((state) => ({
-      pools: state.pools.map(pool => 
+      pools: state.pools.map(pool =>
         pool._id === poolData._id ? { ...pool, ...poolData } : pool
       )
     }))
@@ -102,11 +104,11 @@ const useOrderStore = create(devtools((set, get) => ({
     try {
       const response = await api.post('/suppliers', supplierData)
       const newSupplier = response.data
-      
+
       set((state) => ({
         suppliers: [...state.suppliers, newSupplier]
       }))
-      
+
       toast.success('Supplier added successfully!')
       return newSupplier
     } catch (error) {
@@ -116,10 +118,39 @@ const useOrderStore = create(devtools((set, get) => ({
     }
   },
 
+  // Fetch orders for suppliers (orders from vendors in same pincode area)
+  fetchSupplierOrders: async () => {
+    try {
+      set({ loading: true })
+      const response = await api.get('/suppliers/orders')
+      console.log('Supplier orders response:', response.data)
+
+      if (response.data.success) {
+        set({
+          orders: response.data.data || [],
+          loading: false
+        })
+      } else {
+        set({
+          orders: [],
+          loading: false,
+          error: response.data.error || 'Failed to fetch supplier orders'
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch supplier orders:', error)
+      set({
+        error: error.response?.data?.error || error.message,
+        loading: false,
+        orders: []
+      })
+    }
+  },
+
   // Real-time updates
   handleRealtimeUpdate: (data) => {
     const { type, payload } = data
-    
+
     switch (type) {
       case 'ORDER_CREATED':
         set((state) => ({
@@ -127,26 +158,26 @@ const useOrderStore = create(devtools((set, get) => ({
         }))
         toast.success('New order received!')
         break
-        
+
       case 'POOL_UPDATED':
         set((state) => ({
-          pools: state.pools.map(pool => 
+          pools: state.pools.map(pool =>
             pool._id === payload._id ? { ...pool, ...payload } : pool
           )
         }))
         break
-        
+
       case 'ORDER_POOLED':
         set((state) => ({
-          orders: state.orders.map(order => 
-            order._id === payload.orderId 
+          orders: state.orders.map(order =>
+            order._id === payload.orderId
               ? { ...order, poolId: payload.poolId, status: 'pooled' }
               : order
           )
         }))
         toast.success('Order has been pooled for delivery!')
         break
-        
+
       default:
         // Unknown real-time update type - no action needed
         break

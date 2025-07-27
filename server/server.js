@@ -61,7 +61,8 @@ app.use(cors({
   origin: [
     process.env.CLIENT_URL || "http://localhost:3000",
     "http://localhost:3002", // Vite dev server
-    "http://localhost:3003"  // Alternate Vite port
+    "http://localhost:3003", // Alternate Vite port
+    "http://localhost:3004"  // Another Vite port
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -74,7 +75,8 @@ app.use((req, res, next) => {
   const allowedOrigins = [
     process.env.CLIENT_URL || 'http://localhost:3000',
     'http://localhost:3002',
-    'http://localhost:3003'
+    'http://localhost:3003',
+    'http://localhost:3004'
   ]
   const origin = req.headers.origin
   if (allowedOrigins.includes(origin)) {

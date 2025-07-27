@@ -11,12 +11,7 @@ const router = express.Router()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Force OpenAI initialization with our working API key
-const openai = new OpenAI({
-  apiKey: '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'
-})
-
-console.log('✅ OpenAI API configured with hardcoded key for sprint')
+console.log('✅ OpenAI API will be configured in route handlers')
 
 // Configure multer for audio file uploads
 const storage = multer.diskStorage({
@@ -84,7 +79,7 @@ const findOrCreatePool = async (location, supplierId = null) => {
 const parseLocation = (locationString) => {
   // Simple location parsing - can be enhanced
   const parts = locationString.split(',').map(s => s.trim())
-  
+
   if (parts.length >= 2) {
     return {
       address: locationString,
@@ -92,7 +87,7 @@ const parseLocation = (locationString) => {
       city: parts[1] || 'Mumbai'
     }
   }
-  
+
   return {
     address: locationString,
     city: 'Mumbai',
@@ -103,6 +98,11 @@ const parseLocation = (locationString) => {
 // Process voice order
 router.post('/process', upload.single('audio'), async (req, res) => {
   try {
+    // Configure OpenAI (moved inside route to ensure env vars are loaded)
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    })
+
     const { vendorPhone, location } = req.body
     const audioFile = req.file
 
@@ -152,9 +152,9 @@ router.post('/process', upload.single('audio'), async (req, res) => {
     })
 
     const transcript = transcription.text
-    const confidence = transcription.segments ? 
+    const confidence = transcription.segments ?
       transcription.segments.reduce((acc, seg) => acc + seg.avg_logprob, 0) / transcription.segments.length : 0.8
-    
+
     console.log(`Transcript: ${transcript}`)
     console.log(`Language detected: ${transcription.language || 'hindi'}`)
     console.log(`Confidence: ${confidence}`)
@@ -219,10 +219,10 @@ Return JSON only:
       // Enhanced fallback with our logic
       orderData = {
         items: [
-          { 
-            name: 'mixed_items', 
+          {
+            name: 'mixed_items',
             hindi: transcript,
-            quantity: 1, 
+            quantity: 1,
             unit: 'order',
             price_per_unit: 100,
             total_price: 100,
@@ -243,7 +243,7 @@ Return JSON only:
     }
 
     let estimatedValue = 0
-    
+
     // Standardize the item format and calculate pricing
     if (orderData.items) {
       orderData.items = orderData.items.map(item => {
@@ -252,12 +252,12 @@ Return JSON only:
         const quantity = parseFloat(item.quantity) || 1
         const unit = item.unit || 'kg'
         const hindi = item.hindi || itemName
-        
+
         // Calculate price using our price map
         const pricePerUnit = item.price_per_unit || priceMap[itemName.toLowerCase()] || 50
         const totalPrice = quantity * pricePerUnit
         estimatedValue += totalPrice
-        
+
         // Return standardized format
         return {
           item: itemName,           // Standardized field name
@@ -280,7 +280,7 @@ Return JSON only:
 
     // SPRINT VERSION: Skip order creation and pool logic - just return transcription
     console.log('🚀 SPRINT: Skipping database operations, returning transcription directly')
-    
+
     // Step 5: Send response directly with transcription
     console.log('✅ Voice processing completed successfully')
     res.json({
@@ -321,6 +321,11 @@ Return JSON only:
 // Process text order (alternative to voice)
 router.post('/process-text', async (req, res) => {
   try {
+    // Configure OpenAI (moved inside route to ensure env vars are loaded)
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    })
+
     const { text, vendorPhone, location } = req.body
 
     if (!text || !vendorPhone) {
@@ -337,7 +342,7 @@ router.post('/process-text', async (req, res) => {
         { item: 'rice', quantity: '5', unit: 'kg' },
         { item: 'dal', quantity: '2', unit: 'kg' }
       ]
-      
+
       return res.json({
         success: true,
         data: {
