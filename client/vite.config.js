@@ -6,13 +6,16 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3002,
+    // Proxy configuration for development only
+    // In production, API calls will use environment variables
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api')
       },
       '/socket.io': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_SERVER_URL || 'https://bazzarbandhu.vercel.app',
         ws: true,
       },
     },
