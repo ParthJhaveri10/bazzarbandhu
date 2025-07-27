@@ -6,7 +6,6 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import compression from 'compression'
 import dotenv from 'dotenv'
-import mongoose from 'mongoose'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -45,16 +44,8 @@ const io = new Server(server, {
   }
 })
 
-// Database connection
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/voicecart')
-    console.log(`MongoDB Connected: ${conn.connection.host}`)
-  } catch (error) {
-    console.error('Database connection error:', error)
-    process.exit(1)
-  }
-}
+// Supabase connection (no explicit connection needed)
+console.log('🚀 Supabase configuration loaded')
 
 // CORS Configuration - MUST be first middleware
 app.use(cors({
@@ -128,7 +119,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
-    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+    database: 'Supabase'
   })
 })
 
@@ -184,14 +175,14 @@ const PORT = process.env.PORT || 5000
 
 const startServer = async () => {
   try {
-    await connectDB()
-
+    const PORT = process.env.PORT || 3001
+    
     server.listen(PORT, () => {
       console.log(`
 🚀 VoiceCart Server is running!
 📍 Port: ${PORT}
 🌍 Environment: ${process.env.NODE_ENV || 'development'}
-🗄️  Database: ${mongoose.connection.host}
+🗄️  Database: Supabase
 🔗 Health Check: http://localhost:${PORT}/health
 🔐 Auth Endpoints: http://localhost:${PORT}/api/auth
 📡 Socket.IO enabled for real-time updates
@@ -209,10 +200,7 @@ process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully')
   server.close(() => {
     console.log('HTTP server closed')
-    mongoose.connection.close(false, () => {
-      console.log('MongoDB connection closed')
-      process.exit(0)
-    })
+    process.exit(0)
   })
 })
 
@@ -220,10 +208,7 @@ process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully')
   server.close(() => {
     console.log('HTTP server closed')
-    mongoose.connection.close(false, () => {
-      console.log('MongoDB connection closed')
-      process.exit(0)
-    })
+    process.exit(0)
   })
 })
 

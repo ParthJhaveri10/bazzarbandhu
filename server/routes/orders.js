@@ -1,7 +1,5 @@
 import express from 'express'
-import Order from '../models/Order.js'
-import Pool from '../models/Pool.js'
-import Vendor from '../models/Vendor.js'
+import { supabase } from '../config/supabase.js'
 import { auth } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -9,38 +7,16 @@ const router = express.Router()
 // Get all orders
 router.get('/', async (req, res) => {
   try {
-    const {
-      status,
-      vendorPhone,
-      limit = 50,
-      page = 1,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-    // Build query
-    const query = {}
-    if (status) query.status = status
-    if (vendorPhone) query.vendorPhone = vendorPhone
-
-    // Execute query with pagination
-    const orders = await Order.find(query)
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .populate('poolId')
-
-    const total = await Order.countDocuments(query)
+    if (error) throw error
 
     res.json({
       success: true,
-      data: orders,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
+      data: orders
     })
   } catch (error) {
     res.status(500).json({

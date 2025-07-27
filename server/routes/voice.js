@@ -4,8 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
-import Order from '../models/Order.js'
-import Pool from '../models/Pool.js'
+import { supabase } from '../config/supabase.js'
 
 const router = express.Router()
 const __filename = fileURLToPath(import.meta.url)
@@ -39,36 +38,12 @@ const upload = multer({
   }
 })
 
-// Helper function to find or create a pool
+// Helper function to find or create a pool (TODO: Convert to Supabase)
 const findOrCreatePool = async (location, supplierId = null) => {
   try {
-    // Try to find existing pool in the area
-    let pool = await Pool.findOne({
-      'location.city': new RegExp(location.city || 'Mumbai', 'i'),
-      'location.area': new RegExp(location.area || location.address, 'i'),
-      status: { $in: ['collecting', 'ready'] }
-    })
-
-    // If no pool exists, create a new one
-    if (!pool) {
-      pool = new Pool({
-        location: {
-          address: location.address || location,
-          city: location.city || 'Mumbai',
-          area: location.area || location.address
-        },
-        supplierId,
-        status: 'collecting',
-        threshold: {
-          minOrders: 3,
-          minValue: 500,
-          maxWaitTime: 120
-        }
-      })
-      await pool.save()
-    }
-
-    return pool
+    // TODO: Implement Supabase pool logic
+    console.log('🔄 Pool logic temporarily disabled - implement with Supabase')
+    return null
   } catch (error) {
     console.error('Error finding/creating pool:', error)
     throw error

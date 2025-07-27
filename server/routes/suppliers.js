@@ -1,5 +1,5 @@
 import express from 'express'
-import Supplier from '../models/Supplier.js'
+import { supabase } from '../config/supabase.js'
 import { auth } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -7,38 +7,16 @@ const router = express.Router()
 // Get all suppliers
 router.get('/', async (req, res) => {
   try {
-    const {
-      status = 'active',
-      city,
-      limit = 50,
-      page = 1,
-      sortBy = 'ratings.average',
-      sortOrder = 'desc'
-    } = req.query
+    const { data: suppliers, error } = await supabase
+      .from('suppliers')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-    // Build query
-    const query = {}
-    if (status) query.status = status
-    if (city) query['address.city'] = new RegExp(city, 'i')
-
-    // Execute query with pagination
-    const suppliers = await Supplier.find(query)
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .select('-paymentDetails.bankAccount') // Exclude sensitive data
-
-    const total = await Supplier.countDocuments(query)
+    if (error) throw error
 
     res.json({
       success: true,
-      data: suppliers,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
+      data: suppliers
     })
   } catch (error) {
     res.status(500).json({

@@ -1,5 +1,4 @@
-import Order from '../models/Order.js'
-import Pool from '../models/Pool.js'
+import { supabase } from '../config/supabase.js'
 
 export const setupSocket = (io) => {
   io.on('connection', (socket) => {

@@ -1,47 +1,21 @@
 import express from 'express'
-import Pool from '../models/Pool.js'
-import Order from '../models/Order.js'
+import { supabase } from '../config/supabase.js'
 
 const router = express.Router()
 
 // Get all pools
 router.get('/', async (req, res) => {
   try {
-    const {
-      status,
-      city,
-      area,
-      limit = 50,
-      page = 1,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query
+    const { data: pools, error } = await supabase
+      .from('pools')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-    // Build query
-    const query = {}
-    if (status) query.status = status
-    if (city) query['location.city'] = new RegExp(city, 'i')
-    if (area) query['location.area'] = new RegExp(area, 'i')
-
-    // Execute query with pagination
-    const pools = await Pool.find(query)
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .populate('orders')
-      .populate('supplierId')
-
-    const total = await Pool.countDocuments(query)
+    if (error) throw error
 
     res.json({
       success: true,
-      data: pools,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
+      data: pools
     })
   } catch (error) {
     res.status(500).json({

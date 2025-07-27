@@ -140,16 +140,7 @@ Common items and prices (₹/kg):
       console.log('🗑️ Cleaned up wav file:', wavFilePath)
     }
 
-    // Step 2: Send simple response
-    console.log('✅ Sending response')
-    res.json({
-      success: true,
-      transcript,
-      language,
-      confidence
-    })
-
-    // Step 3: Send enhanced response with parsed order
+    // Send enhanced response with parsed order
     console.log('✅ Sending response')
     res.json({
       success: true,
@@ -157,43 +148,6 @@ Common items and prices (₹/kg):
       language,
       confidence,
       orderData
-    })
-
-  } catch (error) {
-
-    let orderData
-    try {
-      orderData = JSON.parse(completion.choices[0].message.content)
-    } catch (parseError) {
-      console.log('❌ Failed to parse GPT response, using fallback')
-      orderData = {
-        items: [
-          {
-            item: 'mixed_items',
-            hindi: transcript,
-            quantity: 1,
-            unit: 'order',
-            price_per_unit: 100
-          }
-        ],
-        estimatedValue: 100,
-        confidence: 0.8
-      }
-    }
-
-    // Clean up file
-    if (fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path)
-      console.log('🗑️ Cleaned up file:', req.file.path)
-    }
-
-    // Step 3: Send simple response
-    console.log('✅ Sending response')
-    res.json({
-      success: true,
-      transcript,
-      language,
-      confidence
     })
 
   } catch (error) {
