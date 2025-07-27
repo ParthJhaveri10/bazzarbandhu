@@ -53,7 +53,9 @@ app.use(cors({
     process.env.CLIENT_URL || "http://localhost:3000",
     "http://localhost:3002", // Vite dev server
     "http://localhost:3003", // Alternate Vite port
-    "http://localhost:3004"  // Another Vite port
+    "http://localhost:3004", // Another Vite port
+    "https://bazzarbandhu.vercel.app", // Production domain
+    /\.vercel\.app$/ // Any Vercel app domain
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -67,10 +69,11 @@ app.use((req, res, next) => {
     process.env.CLIENT_URL || 'http://localhost:3000',
     'http://localhost:3002',
     'http://localhost:3003',
-    'http://localhost:3004'
+    'http://localhost:3004',
+    'https://bazzarbandhu.vercel.app'
   ]
   const origin = req.headers.origin
-  if (allowedOrigins.includes(origin)) {
+  if (allowedOrigins.includes(origin) || (origin && origin.endsWith('.vercel.app'))) {
     res.header('Access-Control-Allow-Origin', origin)
   }
   res.header('Access-Control-Allow-Credentials', 'true')
@@ -173,12 +176,14 @@ app.use('*', (req, res) => {
 // Start server
 const PORT = process.env.PORT || 5000
 
-const startServer = async () => {
-  try {
-    const PORT = process.env.PORT || 3001
-    
-    server.listen(PORT, () => {
-      console.log(`
+// Only start server in development
+if (process.env.NODE_ENV !== 'production') {
+  const startServer = async () => {
+    try {
+      const PORT = process.env.PORT || 5000
+      
+      server.listen(PORT, () => {
+        console.log(`
 🚀 VoiceCart Server is running!
 📍 Port: ${PORT}
 🌍 Environment: ${process.env.NODE_ENV || 'development'}
@@ -187,48 +192,17 @@ const startServer = async () => {
 🔐 Auth Endpoints: http://localhost:${PORT}/api/auth
 📡 Socket.IO enabled for real-time updates
 🌐 CORS enabled for: ${process.env.CLIENT_URL || 'http://localhost:3000'}
-      `)
-    })
-  } catch (error) {
-    console.error('Failed to start server:', error)
-    process.exit(1)
+        `)
+      })
+    } catch (error) {
+      console.error('Failed to start server:', error)
+      process.exit(1)
+    }
   }
+
+  // Start the server
+  startServer()
 }
 
-// Graceful shutdown handlers
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully')
-  server.close(() => {
-    console.log('HTTP server closed')
-    process.exit(0)
-  })
-})
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully')
-  server.close(() => {
-    console.log('HTTP server closed')
-    process.exit(0)
-  })
-})
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Promise Rejection:', err)
-  console.log('Shutting down server due to unhandled promise rejection')
-  server.close(() => {
-    process.exit(1)
-  })
-})
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err)
-  console.log('Shutting down server due to uncaught exception')
-  process.exit(1)
-})
-
-// Start the server
-startServer()
-
-export { app, io }
+// Export for Vercel
+export default app
