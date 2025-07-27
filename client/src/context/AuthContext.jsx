@@ -56,6 +56,14 @@ export const AuthProvider = ({ children }) => {
                 body: JSON.stringify({ email, password })
             })
 
+            // Check if response is JSON before parsing
+            const contentType = response.headers.get('content-type')
+            if (!contentType || !contentType.includes('application/json')) {
+                const textResponse = await response.text()
+                console.error('❌ Expected JSON but got:', textResponse.substring(0, 200))
+                throw new Error(`Server returned HTML instead of JSON. This usually means the API endpoint is not found. Response: ${textResponse.substring(0, 100)}...`)
+            }
+
             const result = await response.json()
 
             if (response.ok && result.success) {
@@ -109,6 +117,14 @@ export const AuthProvider = ({ children }) => {
                 },
                 body: JSON.stringify(signupData)
             })
+
+            // Check if response is JSON before parsing
+            const contentType = response.headers.get('content-type')
+            if (!contentType || !contentType.includes('application/json')) {
+                const textResponse = await response.text()
+                console.error('❌ Expected JSON but got:', textResponse.substring(0, 200))
+                throw new Error(`Server returned HTML instead of JSON. This usually means the API endpoint is not found. Response: ${textResponse.substring(0, 100)}...`)
+            }
 
             const result = await response.json()
 
