@@ -65,5 +65,7 @@ app.use('/api/*', (req, res) => {
   })
 })
 
-// Export for Vercel
-export default app
+// Export for Vercel - must be a handler function
+export default (req, res) => {
+  return app(req, res)
+}
