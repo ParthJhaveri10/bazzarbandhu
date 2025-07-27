@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, Package, Eye, EyeOff, User, Building, Phone, Mail, MapPin } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { useLanguage } from '../context/LanguageContext'
-import LanguageSelector from '../components/LanguageSelector'
 
 const VendorAuth = () => {
     const [mode, setMode] = useState('login')
@@ -21,7 +19,6 @@ const VendorAuth = () => {
     const navigate = useNavigate()
     const location = useLocation()
     const { login, signup, loading, error, user } = useAuth()
-    const { t } = useLanguage()
 
     useEffect(() => {
         if (user && user.type === 'vendor') {
@@ -50,11 +47,7 @@ const VendorAuth = () => {
 
         try {
             if (mode === 'login') {
-                await login({
-                    email: formData.email,
-                    password: formData.password,
-                    type: 'vendor'
-                })
+                await login(formData.email, formData.password, 'vendor')
                 // Navigate with replace to remove auth pages from history
                 navigate('/home', { replace: true })
             } else {
@@ -86,7 +79,6 @@ const VendorAuth = () => {
                     <ArrowLeft className="w-5 h-5" />
                     <span className="font-medium">Back to Role Selection</span>
                 </Link>
-                <LanguageSelector />
             </div>
 
             <div className="flex items-center justify-center min-h-screen px-6 pt-20">

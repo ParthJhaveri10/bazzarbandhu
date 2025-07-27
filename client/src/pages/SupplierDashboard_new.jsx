@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOrderStore } from '../store/orderStore'
 import { useAuthStore } from '../context/AuthContext'
+import { useLanguage } from '../context/LanguageContext'
 import {
   Package,
   CheckCircle,
@@ -14,84 +15,41 @@ import {
 } from 'lucide-react'
 
 const SupplierDashboard = () => {
-  const { orders, fetchSupplierOrders, updateOrderStatus, isLoading } = useOrderStore()
+  const { orders, fetchSupplierOrders, updateOrderStatus } = useOrderStore()
   const { user, isAuthenticated, logout } = useAuthStore()
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('pending')
-  const [processingOrders, setProcessingOrders] = useState(new Set())
 
   // Filter orders based on active tab
   const filteredOrders = orders?.filter(order => {
     if (activeTab === 'pending') return order.status === 'pending'
-    if (activeTab === 'accepted') return order.status === 'processing' // Changed from 'accepted' to 'processing'
+    if (activeTab === 'accepted') return order.status === 'accepted' || order.status === 'processing'
     if (activeTab === 'completed') return order.status === 'completed'
     return true
   }) || []
 
-  // Debug logging
-  useEffect(() => {
-    console.log('🔍 Current orders:', orders)
-    console.log('🔍 Active tab:', activeTab)
-    console.log('🔍 Filtered orders:', filteredOrders)
-  }, [orders, activeTab, filteredOrders])
-
   // Handle order status update
   const handleAcceptOrder = async (orderId) => {
     try {
-      console.log('🔄 Accepting order:', orderId)
-      setProcessingOrders(prev => new Set(prev).add(orderId))
-      
-      const result = await updateOrderStatus(orderId, 'processing', 'Order accepted by supplier')
-      console.log('✅ Accept result:', result)
-      
+      const result = await updateOrderStatus(orderId, 'accepted', 'Order accepted by supplier')
       if (result.success) {
-        // Switch to accepted tab to show the updated order
-        setActiveTab('accepted')
         // Refresh orders to get latest data
-        await fetchSupplierOrders()
-        console.log('📊 Orders after update:', orders)
-      } else {
-        console.error('❌ Failed to accept order:', result.error)
-        alert('Failed to accept order: ' + result.error)
+        fetchSupplierOrders()
       }
     } catch (error) {
-      console.error('❌ Error accepting order:', error)
-      alert('Error accepting order: ' + error.message)
-    } finally {
-      setProcessingOrders(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(orderId)
-        return newSet
-      })
+      console.error('Error accepting order:', error)
     }
   }
 
   const handleCompleteOrder = async (orderId) => {
     try {
-      console.log('🏁 Completing order:', orderId)
-      setProcessingOrders(prev => new Set(prev).add(orderId))
-      
       const result = await updateOrderStatus(orderId, 'completed', 'Order completed and delivered')
-      console.log('✅ Complete result:', result)
-      
       if (result.success) {
-        // Switch to completed tab to show the updated order
-        setActiveTab('completed')
-        await fetchSupplierOrders()
-        console.log('📊 Orders after completion:', orders)
-      } else {
-        console.error('❌ Failed to complete order:', result.error)
-        alert('Failed to complete order: ' + result.error)
+        fetchSupplierOrders()
       }
     } catch (error) {
-      console.error('❌ Error completing order:', error)
-      alert('Error completing order: ' + error.message)
-    } finally {
-      setProcessingOrders(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(orderId)
-        return newSet
-      })
+      console.error('Error completing order:', error)
     }
   }
 
@@ -221,7 +179,7 @@ const SupplierDashboard = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Accepted Orders</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {orders?.filter(o => o.status === 'processing').length || 0}
+                  {orders?.filter(o => o.status === 'accepted' || o.status === 'processing').length || 0}
                 </p>
               </div>
             </div>
@@ -248,7 +206,7 @@ const SupplierDashboard = () => {
             <nav className="-mb-px flex space-x-8 px-6">
               {[
                 { id: 'pending', label: 'Pending Orders', count: orders?.filter(o => o.status === 'pending').length || 0 },
-                { id: 'accepted', label: 'Accepted Orders', count: orders?.filter(o => o.status === 'processing').length || 0 },
+                { id: 'accepted', label: 'Accepted Orders', count: orders?.filter(o => o.status === 'accepted' || o.status === 'processing').length || 0 },
                 { id: 'completed', label: 'Completed Orders', count: orders?.filter(o => o.status === 'completed').length || 0 }
               ].map((tab) => (
                 <button
@@ -353,48 +311,20 @@ const SupplierDashboard = () => {
                       {order.status === 'pending' && (
                         <button 
                           onClick={() => handleAcceptOrder(order.id || order._id)}
-                          disabled={processingOrders.has(order.id || order._id)}
-                          className={`flex-1 text-sm flex items-center justify-center px-4 py-2 rounded ${
-                            processingOrders.has(order.id || order._id)
-                              ? 'bg-gray-400 text-white cursor-not-allowed'
-                              : 'bg-blue-500 text-white hover:bg-blue-600'
-                          }`}
+                          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex-1 text-sm flex items-center justify-center"
                         >
-                          {processingOrders.has(order.id || order._id) ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Accept Order
-                            </>
-                          )}
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Accept Order
                         </button>
                       )}
                       
-                      {(order.status === 'processing') && (
+                      {(order.status === 'accepted' || order.status === 'processing') && (
                         <button 
                           onClick={() => handleCompleteOrder(order.id || order._id)}
-                          disabled={processingOrders.has(order.id || order._id)}
-                          className={`flex-1 text-sm flex items-center justify-center px-4 py-2 rounded ${
-                            processingOrders.has(order.id || order._id)
-                              ? 'bg-gray-400 text-white cursor-not-allowed'
-                              : 'bg-green-500 text-white hover:bg-green-600'
-                          }`}
+                          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex-1 text-sm flex items-center justify-center"
                         >
-                          {processingOrders.has(order.id || order._id) ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Mark Complete
-                            </>
-                          )}
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Mark Complete
                         </button>
                       )}
                       

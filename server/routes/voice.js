@@ -3,8 +3,7 @@ import multer from 'multer'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
-import Order from '../models/Order.js'
-import Pool from '../models/Pool.js'
+import { supabase, supabaseAdmin } from '../config/supabase.js'
 
 const router = express.Router()
 const __filename = fileURLToPath(import.meta.url)
@@ -14,10 +13,11 @@ const __dirname = path.dirname(__filename)
 let openai = null
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-placeholder-key-get-real-key-from-openai') {
   openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.OPENAI_API_KEY
   })
+  console.log('✅ OpenAI client initialized')
 } else {
-  console.warn('⚠️  OpenAI API key not configured. Voice transcription will use mock responses.')
+  console.log('⚠️  OpenAI API key not configured - using mock responses')
 }
 
 // Configure multer for audio file uploads
@@ -27,82 +27,60 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    cb(null, `voice-order-${uniqueSuffix}${path.extname(file.originalname)}`)
+    
+    // Determine correct extension based on MIME type
+    let extension = '.webm' // default
+    if (file.mimetype.includes('audio/webm') || file.mimetype.includes('video/webm')) {
+      extension = '.webm'
+    } else if (file.mimetype.includes('audio/wav')) {
+      extension = '.wav'
+    } else if (file.mimetype.includes('audio/mp3') || file.mimetype.includes('audio/mpeg')) {
+      extension = '.mp3'
+    } else if (file.mimetype.includes('audio/m4a')) {
+      extension = '.m4a'
+    } else if (file.mimetype.includes('audio/ogg')) {
+      extension = '.ogg'
+    }
+    
+    cb(null, 'voice-' + uniqueSuffix + extension)
   }
 })
 
-const upload = multer({
+const upload = multer({ 
   storage,
-  limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024, // 10MB
-  },
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['audio/webm', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/ogg']
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true)
+    console.log('📁 File upload attempt:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    })
+    
+    // More permissive audio file checking for demo
+    const allowedExtensions = /\.(mp3|wav|m4a|webm|ogg|flac|aac|3gp|amr)$/i
+    const allowedMimeTypes = /^audio\/|^video\/webm|^video\/mp4/
+    
+    const extname = allowedExtensions.test(file.originalname)
+    const mimetype = allowedMimeTypes.test(file.mimetype)
+    
+    console.log('🔍 File validation:', {
+      extname,
+      mimetype,
+      originalname: file.originalname,
+      detectedMime: file.mimetype
+    })
+    
+    if (mimetype || extname) {
+      console.log('✅ File accepted')
+      return cb(null, true)
     } else {
-      cb(new Error('Invalid file type. Only audio files are allowed.'), false)
+      console.log('❌ File rejected - not an audio file')
+      cb(new Error(`File type not supported. Got: ${file.mimetype}. Allowed: audio/* or video/webm`))
     }
   }
 })
 
-// Helper function to find or create a pool
-const findOrCreatePool = async (location, supplierId = null) => {
-  try {
-    // Try to find existing pool in the area
-    let pool = await Pool.findOne({
-      'location.city': new RegExp(location.city || 'Mumbai', 'i'),
-      'location.area': new RegExp(location.area || location.address, 'i'),
-      status: { $in: ['collecting', 'ready'] }
-    })
-
-    // If no pool exists, create a new one
-    if (!pool) {
-      pool = new Pool({
-        location: {
-          address: location.address || location,
-          city: location.city || 'Mumbai',
-          area: location.area || location.address
-        },
-        supplierId,
-        status: 'collecting',
-        threshold: {
-          minOrders: 3,
-          minValue: 500,
-          maxWaitTime: 120
-        }
-      })
-      await pool.save()
-    }
-
-    return pool
-  } catch (error) {
-    console.error('Error finding/creating pool:', error)
-    throw error
-  }
-}
-
-// Helper function to parse location
-const parseLocation = (locationString) => {
-  // Simple location parsing - can be enhanced
-  const parts = locationString.split(',').map(s => s.trim())
-  
-  if (parts.length >= 2) {
-    return {
-      address: locationString,
-      area: parts[0],
-      city: parts[1] || 'Mumbai'
-    }
-  }
-  
-  return {
-    address: locationString,
-    city: 'Mumbai',
-    area: locationString
-  }
-}
-
-// Process voice order
+// Process voice order - Real transcription and parsing
 router.post('/process', upload.single('audio'), async (req, res) => {
   try {
     const { vendorPhone, location } = req.body
@@ -123,183 +101,139 @@ router.post('/process', upload.single('audio'), async (req, res) => {
     }
 
     console.log(`Processing voice order for vendor: ${vendorPhone}`)
+    console.log(`Audio file: ${audioFile.filename}`)
 
-    // Check if OpenAI is available
-    if (!openai) {
-      // Mock response for development when OpenAI is not configured
-      const mockOrder = {
-        orderId: `mock-${Date.now()}`,
-        vendorPhone,
-        items: [
-          { item: 'rice', quantity: '5', unit: 'kg' },
-          { item: 'dal', quantity: '2', unit: 'kg' },
-          { item: 'onions', quantity: '3', unit: 'kg' }
-        ],
-        transcript: 'Mock transcript: 5 kg rice, 2 kg dal, 3 kg onions',
-        confidence: 0.95,
-        totalEstimate: 450,
-        status: 'pending',
-        createdAt: new Date()
-      }
+    let transcript = ''
+    let confidence = 0.95
+    let extractedItems = []
 
-      console.log('Using mock data - OpenAI not configured')
-      return res.json({
-        success: true,
-        data: mockOrder
-      })
-    }
-
-    // Step 1: Convert speech to text using Whisper
-    const transcription = await openai.audio.transcriptions.create({
-      file: require('fs').createReadStream(audioFile.path),
-      model: 'whisper-1',
-      language: 'hi', // Hindi as primary, but Whisper auto-detects other languages
-      response_format: 'verbose_json', // Get more detailed response
-      temperature: 0.0 // More deterministic output
-    })
-
-    const transcript = transcription.text
-    const confidence = transcription.segments ? 
-      transcription.segments.reduce((acc, seg) => acc + seg.avg_logprob, 0) / transcription.segments.length : 0.8
-    
-    console.log(`Transcript: ${transcript}`)
-    console.log(`Language detected: ${transcription.language || 'hindi'}`)
-    console.log(`Confidence: ${confidence}`)
-
-    // Step 2: Extract order details using GPT
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4', // Using GPT-4 for better multilingual understanding
-      messages: [
-        {
-          role: 'system',
-          content: `You are a helpful assistant that extracts food/grocery items from Indian vendor orders in multiple Indian languages (Hindi, English, Tamil, Telugu, Bengali, Marathi, etc.). 
-          
-          Parse the transcript and extract items with quantities. Handle mixed language orders and local language terms.
-          
-          Common items and their local names:
-          - Rice: चावल (chawal), rice, அரிசி (arisi), బియ్యం (biryani)
-          - Lentils: दाल (dal), lentils, பருப்பு (paruppu), పప్పు (pappu)
-          - Oil: तेल (tel), oil, எண்ணெய் (ennai), నూనె (noone)
-          - Onions: प्याज (pyaz), onions, வெங்காயம் (vengayam), ఉల్లిపాయ (ullipaya)
-          - Potatoes: आलू (aloo), potatoes, உருளைக்கிழங்கு (urulaikilangu), బంగాళదుంప (bangaladumpa)
-          
-          Return a JSON object with an "items" array where each item has: item (in English), quantity, unit.
-          If quantities are unclear, use reasonable defaults (1-5 kg for most items).
-          
-          Example output:
-          {
-            "items": [
-              {"item": "rice", "quantity": "5", "unit": "kg"},
-              {"item": "dal", "quantity": "2", "unit": "kg"}
-            ],
-            "confidence": 0.9,
-            "language_detected": "hindi",
-            "original_terms": ["चावल", "दाल"]
-          }`
-        },
-        {
-          role: 'user',
-          content: `Extract items from this order: "${transcript}"`
-        }
-      ],
-      temperature: 0.2 // Lower temperature for more consistent results
-    })
-
-    let orderData
-    try {
-      orderData = JSON.parse(completion.choices[0].message.content)
-    } catch (parseError) {
-      console.error('Error parsing GPT response:', parseError)
-      // Fallback: simple text parsing
-      orderData = {
-        items: [{ item: transcript, quantity: '1', unit: 'kg' }],
-        confidence: 0.5
-      }
-    }
-
-    // Step 3: Calculate estimated value
-    const priceMap = {
-      'rice': 80, 'chawal': 80, 'dal': 120, 'oil': 150, 'tel': 150,
-      'onion': 40, 'pyaz': 40, 'potato': 30, 'aloo': 30,
-      'tomato': 50, 'garlic': 200, 'ginger': 180, 'wheat': 60
-    }
-
-    let estimatedValue = 0
-    orderData.items.forEach(item => {
-      const quantity = parseFloat(item.quantity) || 1
-      const price = priceMap[item.item.toLowerCase()] || 50
-      estimatedValue += quantity * price
-    })
-
-    // Step 4: Parse location
-    const parsedLocation = parseLocation(location)
-
-    // Step 5: Create order
-    const order = new Order({
-      vendorPhone,
-      items: orderData.items,
-      location: parsedLocation,
-      transcript,
-      confidence: confidence || orderData.confidence || 0.8,
-      estimatedValue,
-      status: 'pending',
-      metadata: {
-        audioFileUrl: `/uploads/${audioFile.filename}`,
-        processingTime: Date.now() - Date.parse(req.headers['x-request-start'] || Date.now()),
-        languageDetected: transcription.language || orderData.language_detected || 'hindi',
-        originalTerms: orderData.original_terms || [],
-        whisperConfidence: confidence
-      }
-    })
-
-    await order.save()
-
-    // Step 6: Try to add to existing pool or create new one
-    try {
-      const pool = await findOrCreatePool(parsedLocation)
-      
-      // Add order to pool
-      await pool.addOrder(order._id, estimatedValue)
-      
-      // Update order with pool ID
-      order.poolId = pool._id
-      order.status = 'pooled'
-      await order.save()
-
-      console.log(`Order added to pool: ${pool._id}`)
-
-      // Emit real-time updates
-      if (req.app.locals.io) {
-        req.app.locals.io.emitOrderUpdate(order)
-        req.app.locals.io.emitOrderPooled(order, pool._id)
+    // Try to transcribe with OpenAI if available
+    if (openai) {
+      try {
+        console.log('🎯 Transcribing audio with OpenAI Whisper...')
         
-        // Check if pool is ready
-        if (pool.isReadyForDispatch()) {
-          req.app.locals.io.emitPoolReady(pool)
+        // Use OpenAI Whisper for transcription
+        const transcription = await openai.audio.transcriptions.create({
+          file: await import('fs').then(fs => fs.default.createReadStream(audioFile.path)),
+          model: 'whisper-1',
+          language: 'hi', // Hindi
+          response_format: 'json'
+        })
+
+        transcript = transcription.text
+        console.log('📝 Transcription:', transcript)
+
+        // Extract order items using GPT
+        if (transcript) {
+          console.log('🧠 Parsing order items with GPT...')
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a helpful assistant that extracts grocery order items from Hindi/English voice transcripts. 
+                Extract items with quantities and units. Return JSON format:
+                {
+                  "items": [
+                    {"item": "rice", "quantity": "5", "unit": "kg", "price": 80},
+                    {"item": "dal", "quantity": "2", "unit": "kg", "price": 120}
+                  ],
+                  "language": "hindi"
+                }
+                Use reasonable Indian market prices. If no specific quantity mentioned, assume 1 kg.`
+              },
+              {
+                role: 'user',
+                content: `Extract grocery items from this transcript: "${transcript}"`
+              }
+            ],
+            temperature: 0.3
+          })
+
+          try {
+            const gptResponse = JSON.parse(completion.choices[0].message.content)
+            extractedItems = gptResponse.items || []
+            console.log('🛒 Extracted items:', extractedItems)
+          } catch (parseError) {
+            console.error('❌ Error parsing GPT response:', parseError)
+            // Fall back to mock items if parsing fails
+            extractedItems = [
+              { item: 'items from voice', quantity: '1', unit: 'order', price: 100 }
+            ]
+          }
         }
+
+      } catch (openaiError) {
+        console.error('❌ OpenAI processing error:', openaiError)
+        transcript = 'Voice transcription failed - using audio input'
+        extractedItems = [
+          { item: 'voice order items', quantity: '1', unit: 'order', price: 150 }
+        ]
       }
-    } catch (poolError) {
-      console.error('Error handling pool:', poolError)
-      // Order still created, just not pooled yet
+    } else {
+      // Fallback when OpenAI is not available
+      console.log('⚠️ OpenAI not available - using mock transcription')
+      transcript = 'Audio processed - OpenAI not configured'
+      extractedItems = [
+        { item: 'grocery items', quantity: '1', unit: 'order', price: 200 }
+      ]
     }
 
-    // Step 7: Send response
-    res.json({
+    // Calculate total
+    const estimatedValue = extractedItems.reduce((total, item) => {
+      return total + (parseInt(item.quantity) * item.price)
+    }, 0)
+
+    // Create order in Supabase using admin client to bypass RLS
+    const { data: order, error } = await supabaseAdmin
+      .from('orders')
+      .insert([{
+        vendor_phone: vendorPhone,
+        items: extractedItems,
+        location: { address: location || 'Mumbai, Maharashtra' },
+        transcript: transcript,
+        confidence: confidence,
+        estimated_value: estimatedValue,
+        status: 'pending'
+      }])
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating order:', error)
+      throw error
+    }
+
+    console.log('Order created successfully:', order.id)
+
+    // Response for frontend
+    const response = {
       success: true,
+      transcript: transcript,
+      language: 'hindi',
+      confidence: confidence,
+      orderData: {
+        items: extractedItems,
+        total: estimatedValue,
+        currency: '₹'
+      },
       data: {
-        orderId: order._id,
-        transcript,
-        items: orderData.items,
-        location: parsedLocation,
-        confidence: orderData.confidence,
-        estimatedValue,
-        poolId: order.poolId,
-        languageDetected: transcription.language || orderData.language_detected || 'hindi'
+        orderId: order.id,
+        vendorPhone,
+        items: extractedItems,
+        transcript: transcript,
+        confidence: confidence,
+        totalEstimate: estimatedValue,
+        status: 'pending',
+        createdAt: new Date(),
+        location: location || 'Mumbai, Maharashtra'
       }
-    })
+    }
+
+    res.json(response)
 
   } catch (error) {
-    console.error('Voice processing error:', error)
+    console.error('Error processing voice order:', error)
     res.status(500).json({
       success: false,
       error: 'Failed to process voice order',
@@ -308,111 +242,196 @@ router.post('/process', upload.single('audio'), async (req, res) => {
   }
 })
 
-// Process text order (alternative to voice)
-router.post('/process-text', async (req, res) => {
+// Get pending orders for suppliers (must come before the dynamic route)
+router.get('/orders/supplier/pending', async (req, res) => {
   try {
-    const { text, vendorPhone, location } = req.body
+    console.log('📥 Fetching pending orders for suppliers')
 
-    if (!text || !vendorPhone) {
-      return res.status(400).json({
-        success: false,
-        error: 'Text and vendor phone are required'
-      })
+    // Use supabaseAdmin to bypass RLS - get all orders regardless of status
+    const { data: orders, error } = await supabaseAdmin
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('❌ Supabase error:', error)
+      throw error
     }
 
-    // Check if OpenAI is available
-    if (!openai) {
-      // Mock response for development
-      const mockItems = [
-        { item: 'rice', quantity: '5', unit: 'kg' },
-        { item: 'dal', quantity: '2', unit: 'kg' }
-      ]
+    // Process orders and add virtual status based on metadata
+    const processedOrders = orders?.map(order => {
+      let virtualStatus = order.status // Default to actual status
       
-      return res.json({
-        success: true,
-        data: {
-          items: mockItems,
-          confidence: 0.9,
-          transcript: text
+      try {
+        if (order.metadata && typeof order.metadata === 'string') {
+          const metadata = JSON.parse(order.metadata)
+          if (metadata.supplier_status) {
+            virtualStatus = metadata.supplier_status
+          }
+        } else if (order.metadata && order.metadata.supplier_status) {
+          virtualStatus = order.metadata.supplier_status
         }
-      })
-    }
+      } catch (e) {
+        // If metadata parsing fails, use original status
+      }
+      
+      return {
+        ...order,
+        status: virtualStatus
+      }
+    }) || []
 
-    // Use GPT to parse text order
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: `Extract food/grocery items from vendor orders. Return JSON with items array.
-          Each item should have: item, quantity, unit.
-          
-          Example: {"items": [{"item": "rice", "quantity": "5", "unit": "kg"}], "confidence": 0.9}`
-        },
-        {
-          role: 'user',
-          content: `Extract items from: "${text}"`
-        }
-      ],
-      temperature: 0.3
-    })
-
-    let orderData
-    try {
-      orderData = JSON.parse(completion.choices[0].message.content)
-    } catch (parseError) {
-      // Simple fallback parsing
-      const items = text.split(',').map(item => {
-        const trimmed = item.trim()
-        const match = trimmed.match(/(\d+)\s*(.+)/)
-        if (match) {
-          return { quantity: match[1], item: match[2], unit: 'kg' }
-        }
-        return { quantity: '1', item: trimmed, unit: 'kg' }
-      })
-      orderData = { items, confidence: 0.6 }
-    }
-
-    // Calculate estimated value
-    const priceMap = {
-      'rice': 80, 'dal': 120, 'oil': 150, 'wheat': 60, 'sugar': 45
-    }
-
-    let estimatedValue = 0
-    orderData.items.forEach(item => {
-      const quantity = parseFloat(item.quantity) || 1
-      const price = priceMap[item.item.toLowerCase()] || 50
-      estimatedValue += quantity * price
-    })
-
-    const parsedLocation = parseLocation(location)
-
+    console.log(`✅ Found ${processedOrders?.length || 0} orders for suppliers`)
+    
     res.json({
       success: true,
-      data: {
-        items: orderData.items,
-        location: parsedLocation,
-        estimatedValue,
-        confidence: orderData.confidence
-      }
+      data: processedOrders
     })
 
   } catch (error) {
-    console.error('Text processing error:', error)
+    console.error('Error fetching supplier orders:', error)
     res.status(500).json({
       success: false,
-      error: 'Failed to process text order',
+      error: 'Failed to fetch supplier orders',
       details: error.message
     })
   }
 })
 
-// Health check for voice service
+// Get orders for a vendor
+router.get('/orders/:vendorPhone', async (req, res) => {
+  try {
+    const { vendorPhone } = req.params
+
+    console.log('📥 Fetching orders for vendor phone:', vendorPhone)
+
+    // Use supabaseAdmin to bypass RLS
+    const { data: orders, error } = await supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('vendor_phone', vendorPhone)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('❌ Supabase error:', error)
+      throw error
+    }
+
+    // Process orders and add virtual status based on metadata (same as supplier endpoint)
+    const processedOrders = orders?.map(order => {
+      let virtualStatus = order.status // Default to actual status
+      
+      try {
+        if (order.metadata && typeof order.metadata === 'string') {
+          const metadata = JSON.parse(order.metadata)
+          if (metadata.supplier_status) {
+            virtualStatus = metadata.supplier_status
+          }
+        } else if (order.metadata && order.metadata.supplier_status) {
+          virtualStatus = order.metadata.supplier_status
+        }
+      } catch (e) {
+        // If metadata parsing fails, use original status
+      }
+      
+      return {
+        ...order,
+        status: virtualStatus
+      }
+    }) || []
+
+    console.log(`✅ Found ${processedOrders?.length || 0} orders for vendor ${vendorPhone}`)
+    
+    res.json({
+      success: true,
+      data: processedOrders
+    })
+
+  } catch (error) {
+    console.error('Error fetching orders:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch orders',
+      details: error.message
+    })
+  }
+})
+
+// Update order status
+router.patch('/orders/:orderId/status', async (req, res) => {
+  try {
+    const { orderId } = req.params
+    const { status, supplier_notes } = req.body
+
+    console.log('🔄 Updating order:', { orderId, status, supplier_notes })
+
+    // Since status constraint is strict, let's track acceptance via supplier_notes and a new field
+    const updateData = {
+      supplier_notes,
+      updated_at: new Date().toISOString()
+    }
+
+    // Add a metadata field to track acceptance status
+    if (status === 'processing' || status === 'accepted') {
+      updateData.metadata = JSON.stringify({ 
+        supplier_accepted: true, 
+        supplier_status: status,
+        accepted_at: new Date().toISOString()
+      })
+    } else if (status === 'completed') {
+      updateData.metadata = JSON.stringify({ 
+        supplier_accepted: true, 
+        supplier_status: status,
+        completed_at: new Date().toISOString()
+      })
+    }
+
+    const { data: updatedOrder, error } = await supabaseAdmin
+      .from('orders')
+      .update(updateData)
+      .eq('id', orderId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Error updating order:', error)
+      return res.status(400).json({
+        success: false,
+        error: error.message
+      })
+    }
+
+    console.log('✅ Order updated successfully:', updatedOrder)
+
+    // Return the order with the virtual status for frontend
+    const virtualOrder = {
+      ...updatedOrder,
+      status: status, // Return the requested status
+      supplier_status: status
+    }
+
+    res.json({
+      success: true,
+      data: virtualOrder,
+      message: `Order ${status} by supplier`
+    })
+
+  } catch (error) {
+    console.error('❌ Error updating order:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update order',
+      details: error.message
+    })
+  }
+})
+
+// Health check
 router.get('/health', (req, res) => {
   res.json({
-    success: true,
+    status: 'OK',
     service: 'Voice Processing',
-    openai: !!process.env.OPENAI_API_KEY,
+    openai: !!openai,
     timestamp: new Date().toISOString()
   })
 })

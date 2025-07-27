@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOrderStore } from '../store/orderStore'
 import { useSocket } from '../hooks/useSocket'
-import { useLanguage } from '../context/LanguageContext'
-import { useAuthStore } from '../store/authStore'
+import { useAuthStore } from '../context/AuthContext'
 import VoiceRecorder from '../components/VoiceRecorder'
 import {
   Package,
@@ -11,22 +10,18 @@ import {
   CheckCircle,
   Phone,
   MapPin,
-  Calendar,
   User,
   Store,
   Mail,
   Star,
-  Edit,
   Settings,
   LogOut
 } from 'lucide-react'
 
 const VendorDashboard = () => {
   const [showOrderForm, setShowOrderForm] = useState(false)
-  const [showProfileEdit, setShowProfileEdit] = useState(false)
   const { orders, getOrdersByVendor, fetchOrders } = useOrderStore()
   const { joinVendorRoom, leaveVendorRoom } = useSocket()
-  const { t } = useLanguage()
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -34,10 +29,21 @@ const VendorDashboard = () => {
   const vendorPhone = user?.phone || ''
   const vendorOrders = vendorPhone ? getOrdersByVendor(vendorPhone) : []
 
+  // Debug logs
+  console.log('🏪 VendorDashboard - User:', user)
+  console.log('📱 VendorDashboard - Phone:', vendorPhone)
+  console.log('📦 VendorDashboard - Orders:', orders)
+  console.log('🔍 VendorDashboard - Filtered Orders:', vendorOrders)
+
   useEffect(() => {
-    // Fetch orders when component mounts
-    fetchOrders()
-  }, [fetchOrders])
+    // Fetch orders when component mounts and vendorPhone is available
+    if (vendorPhone && fetchOrders && typeof fetchOrders === 'function') {
+      console.log('📥 Fetching orders for vendor:', vendorPhone)
+      fetchOrders(vendorPhone)
+    } else {
+      console.warn('⚠️ Unable to fetch orders:', { vendorPhone, fetchOrders: typeof fetchOrders })
+    }
+  }, [fetchOrders, vendorPhone])
 
   useEffect(() => {
     if (vendorPhone) {
@@ -64,9 +70,9 @@ const VendorDashboard = () => {
     switch (status) {
       case 'pending':
         return <Clock className="w-5 h-5 text-yellow-500" />
-      case 'pooled':
+      case 'processing':
         return <Package className="w-5 h-5 text-blue-500" />
-      case 'delivered':
+      case 'completed':
         return <CheckCircle className="w-5 h-5 text-green-500" />
       default:
         return <Clock className="w-5 h-5 text-gray-500" />
@@ -77,9 +83,9 @@ const VendorDashboard = () => {
     switch (status) {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800'
-      case 'pooled':
+      case 'processing':
         return 'bg-blue-100 text-blue-800'
-      case 'delivered':
+      case 'completed':
         return 'bg-green-100 text-green-800'
       default:
         return 'bg-gray-100 text-gray-800'
@@ -162,25 +168,12 @@ const VendorDashboard = () => {
                   <Phone className="w-4 h-4 mr-2" />
                   <span>{user.phone}</span>
                 </div>
-                <div className="flex items-center">
-                  <User className="w-4 h-4 mr-2" />
-                  <span>Vendor ID: {user.vendorId}</span>
-                </div>
                 {user.address && (
                   <div className="flex items-start md:col-span-2">
                     <MapPin className="w-4 h-4 mr-2 mt-0.5" />
                     <span>{user.address}</span>
                   </div>
                 )}
-                <div className="flex items-center md:col-span-2">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  <span>Member since {formatDate(user.createdAt)}</span>
-                  {user.lastLogin && (
-                    <span className="ml-4">
-                      • Last login: {formatDate(user.lastLogin)}
-                    </span>
-                  )}
-                </div>
               </div>
 
               {/* Rating */}
@@ -200,13 +193,6 @@ const VendorDashboard = () => {
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowProfileEdit(true)}
-              className="btn btn-secondary flex items-center"
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Profile
-            </button>
             <button
               onClick={() => navigate('/home')}
               className="btn btn-primary flex items-center"
@@ -259,9 +245,9 @@ const VendorDashboard = () => {
               <Package className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pooled</p>
+              <p className="text-sm font-medium text-gray-600">Accepted</p>
               <p className="text-2xl font-bold text-gray-900">
-                {vendorOrders.filter(o => o.status === 'pooled').length}
+                {vendorOrders.filter(o => o.status === 'processing').length}
               </p>
             </div>
           </div>
@@ -273,9 +259,9 @@ const VendorDashboard = () => {
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Delivered</p>
+              <p className="text-sm font-medium text-gray-600">Completed</p>
               <p className="text-2xl font-bold text-gray-900">
-                {vendorOrders.filter(o => o.status === 'delivered').length}
+                {vendorOrders.filter(o => o.status === 'completed').length}
               </p>
             </div>
           </div>
@@ -333,8 +319,23 @@ const VendorDashboard = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {order.items?.map((item, itemIndex) => (
                         <div key={itemIndex} className="bg-gray-50 p-2 rounded">
-                          <span className="font-medium">{item.quantity} {item.unit}</span>
-                          <span className="ml-2">{item.item}</span>
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span className="font-medium">{String(item.quantity || '')} {String(item.unit || '')}</span>
+                              <span className="ml-2">{String(item.item || '')}</span>
+                            </div>
+                            {item.price && (
+                              <div className="text-sm text-gray-600">
+                                {item.quantity && item.price ? (
+                                  <span>
+                                    {item.quantity} × ₹{item.price} = <span className="font-medium">₹{item.quantity * item.price}</span>
+                                  </span>
+                                ) : (
+                                  <span>₹{item.price}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -343,7 +344,7 @@ const VendorDashboard = () => {
                   {order.location?.address && (
                     <div className="flex items-center text-sm text-gray-600">
                       <MapPin className="w-4 h-4 mr-1" />
-                      <span>{order.location.address}</span>
+                      <span>{String(order.location.address)}</span>
                     </div>
                   )}
 
@@ -385,29 +386,6 @@ const VendorDashboard = () => {
                 onOrderCreated={handleOrderCreated}
                 defaultPhone={vendorPhone}
               />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Profile Edit Modal */}
-      {showProfileEdit && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-              <h2 className="text-xl font-bold">Edit Profile</h2>
-              <button
-                onClick={() => setShowProfileEdit(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="text-center text-gray-500">
-                Profile editing functionality coming soon...
-              </div>
             </div>
           </div>
         </div>

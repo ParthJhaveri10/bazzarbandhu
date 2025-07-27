@@ -85,11 +85,11 @@ function App() {
               }
             />
 
-            {/* Home Page - Main landing after authentication */}
+            {/* Home Page - Vendor Voice Ordering (vendor-only) */}
             <Route
               path="/home"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="vendor">
                   <Home />
                 </ProtectedRoute>
               }

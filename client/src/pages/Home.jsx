@@ -22,16 +22,16 @@ import {
   Download,
   Trash2
 } from 'lucide-react'
-import { useLanguage } from '../context/LanguageContext'
-import { useAuthStore } from '../store/authStore'
+import { useAuthStore } from '../context/AuthContext'
 import { useOrderStore } from '../store/orderStore'
-import LanguageSelector from '../components/LanguageSelector'
 
 const Home = () => {
-  const { t } = useLanguage()
   const { user, logout } = useAuthStore()
   const { createOrder } = useOrderStore()
   const navigate = useNavigate()
+
+  // Debug auth state
+  console.log('🏠 Home component - Auth state:', { user, isAuthenticated: !!user })
 
   // State management
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
@@ -178,10 +178,10 @@ const Home = () => {
         }
       }
 
-      console.log('📤 Sending request to /simple-voice/transcribe')
+      console.log('📤 Sending request to voice/process')
 
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${API_URL}/simple-voice/transcribe`, {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+      const response = await fetch(`${API_URL}/voice/process`, {
         method: 'POST',
         body: formData
       })
@@ -260,64 +260,40 @@ const Home = () => {
     setProcessingError('')
 
     try {
-      const token = localStorage.getItem('authToken')
-      console.log('🔐 Token check:', token ? 'Token exists' : 'No token found')
       console.log('👤 User data:', user)
-      console.log('📦 Order data:', processedOrder)
+      console.log('� Order data:', processedOrder)
 
-      if (!token) {
-        setProcessingError('No authentication token found. Please login again.')
+      // Check if user is authenticated with our current auth system
+      const isAuthenticated = localStorage.getItem('voicecart-auth') === 'true'
+      const userData = localStorage.getItem('voicecart-user')
+      
+      console.log('� Auth check:', { isAuthenticated, hasUserData: !!userData })
+
+      if (!isAuthenticated || !userData) {
+        setProcessingError('No authentication found. Please login again.')
         setIsSendingOrder(false)
         return
       }
 
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      console.log('📡 Sending to:', `${API_URL}/orders/create`)
+      // For demo purposes, use the voice processing API that already works
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+      console.log('📡 Sending to dashboard via voice API')
 
-      const response = await fetch(`${API_URL}/orders/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          transcript: transcription,
-          language: processedOrder.language,
-          items: processedOrder.items,
-          total: processedOrder.total,
-          currency: processedOrder.currency || '₹',
-          vendorId: user.id,
-          status: 'pending'
-        })
-      })
+      // Since the voice processing already created the order, just show success
+      console.log('✅ Order already created successfully via voice processing')
+      setShowSuccess(true)
 
-      const result = await response.json()
-      console.log('📨 Response status:', response.status)
-      console.log('📄 Response data:', result)
+      // Clear the processed order after successful submission
+      setProcessedOrder(null)
+      setTranscription('')
+      clearRecording()
 
-      if (response.ok) {
-        console.log('✅ Order sent to dashboard successfully:', result)
-        setShowSuccess(true)
+      setTimeout(() => {
+        setShowSuccess(false)
+        // Navigate to vendor dashboard to see the order
+        navigate('/vendor-dashboard')
+      }, 2000)
 
-        // Clear the processed order after successful submission
-        setProcessedOrder(null)
-        setTranscription('')
-        clearRecording()
-
-        setTimeout(() => {
-          setShowSuccess(false)
-        }, 3000)
-      } else {
-        console.error('❌ Failed to send order:', result)
-        if (response.status === 401) {
-          setProcessingError('Authentication failed. Please login again.')
-          // Optionally redirect to login
-          // logout()
-          // navigate('/auth/vendor')
-        } else {
-          setProcessingError(`Failed to send order: ${result.error || result.message || 'Unknown error'}`)
-        }
-      }
     } catch (error) {
       console.error('❌ Error sending order to dashboard:', error)
       setProcessingError(`Error: ${error.message || 'Failed to send order to dashboard'}`)
@@ -366,8 +342,6 @@ const Home = () => {
 
           {/* Right Side */}
           <div className="flex items-center space-x-4">
-            <LanguageSelector />
-
             {user ? (
               /* Profile Dropdown */
               <div className="relative">
@@ -512,7 +486,7 @@ const Home = () => {
         </div>
 
         {/* Voice Button - EXTRA LARGE */}
-        <div className="relative mb-20">
+        <div className="relative mb-32">
           {user ? (
             <button
               onClick={handleVoiceButtonClick}
@@ -565,7 +539,7 @@ const Home = () => {
           )}
 
           {/* Status Text Below Button */}
-          <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 text-center w-96">
+          <div className="absolute -bottom-24 left-1/2 transform -translate-x-1/2 text-center w-96">
             {user ? (
               <>
                 {isProcessing ? (
@@ -586,7 +560,7 @@ const Home = () => {
                 ) : (
                   <div className="space-y-2">
                     <p className="text-2xl font-bold text-gray-800">🎤 Tap to Start Recording</p>
-                    <p className="text-lg text-gray-600">Speak your order in any language</p>
+                    <p className="text-lg text-gray-600">Speak your order clearly and we'll take care of the rest</p>
                   </div>
                 )}
               </>
@@ -657,9 +631,6 @@ const Home = () => {
             {transcription && (
               <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 mb-4">
                 <p className="text-gray-700 text-lg italic">"{transcription}"</p>
-                {processedOrder?.language && (
-                  <p className="text-sm text-gray-500 mt-2">Language: {processedOrder.language}</p>
-                )}
               </div>
             )}
 
@@ -798,29 +769,6 @@ const Home = () => {
           </div>
         )}
 
-        {/* Language Support Section */}
-        <div className="w-full max-w-4xl mb-16">
-          <div className="text-center mb-8">
-            <h3 className="text-2xl font-bold text-gray-800 mb-3">🌐 Supported Languages</h3>
-            <p className="text-lg text-gray-600">Speak your order in your preferred language</p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { lang: '🇮🇳 हिंदी', english: 'Hindi' },
-              { lang: '🇬🇧 English', english: 'English' },
-              { lang: '🇮🇳 తెలుగు', english: 'Telugu' },
-              { lang: '🇮🇳 தமிழ்', english: 'Tamil' }
-            ].map((language, index) => (
-              <div key={index} className="flex flex-col items-center p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-shadow border border-white/50">
-                <div className="w-4 h-4 bg-green-500 rounded-full mb-4 animate-pulse"></div>
-                <span className="text-lg font-bold text-gray-800 mb-1">{language.lang}</span>
-                <span className="text-sm text-gray-500">{language.english}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Features Section */}
         <div className="w-full max-w-4xl">
           <div className="text-center mb-8">
@@ -834,7 +782,7 @@ const Home = () => {
                 <Mic className="w-6 h-6 text-white" />
               </div>
               <h4 className="text-lg font-bold text-gray-800 mb-2">Voice Ordering</h4>
-              <p className="text-sm text-gray-600">Place orders using your voice in multiple languages</p>
+              <p className="text-sm text-gray-600">Place orders using your voice naturally</p>
             </div>
 
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50 text-center">

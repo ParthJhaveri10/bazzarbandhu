@@ -1,19 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Package, Users, Globe } from 'lucide-react'
-import { useLanguage } from '../context/LanguageContext'
-import LanguageSelector from '../components/LanguageSelector'
 
 const RoleSelection = () => {
-    const { t } = useLanguage()
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 relative">
-            {/* Language Selector - Top Right */}
-            <div className="absolute top-6 right-6 z-10">
-                <LanguageSelector />
-            </div>
-
             {/* Main Content */}
             <div className="flex flex-col items-center justify-center min-h-screen px-6">
 
@@ -115,7 +107,7 @@ const RoleSelection = () => {
                                 Voice Ordering
                             </h4>
                             <p className="text-sm text-gray-600">
-                                Place orders using your voice in multiple languages
+                                Place orders using your voice naturally
                             </p>
                         </div>
 
@@ -125,10 +117,10 @@ const RoleSelection = () => {
                                 <Globe className="w-6 h-6 text-white" />
                             </div>
                             <h4 className="text-lg font-bold text-gray-800 mb-2">
-                                Multi-Language Support
+                                Voice Technology
                             </h4>
                             <p className="text-sm text-gray-600">
-                                Available in Hindi, English, Telugu, and Tamil
+                                Advanced voice recognition and processing
                             </p>
                         </div>
 
@@ -146,33 +138,6 @@ const RoleSelection = () => {
                                 AI-powered vendor-supplier matching system
                             </p>
                         </div>
-                    </div>
-                </div>
-
-                {/* Language Support Section */}
-                <div className="w-full max-w-2xl mt-16">
-                    <div className="text-center mb-6">
-                        <h4 className="text-xl font-bold text-gray-800 mb-2">
-                            🌐 Supported Languages
-                        </h4>
-                        <p className="text-gray-600">
-                            Communicate in your preferred language
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[
-                            { flag: '🇮🇳', name: 'हिंदी', english: 'Hindi' },
-                            { flag: '🇬🇧', name: 'English', english: 'English' },
-                            { flag: '🇮🇳', name: 'తెలుగు', english: 'Telugu' },
-                            { flag: '🇮🇳', name: 'தமிழ்', english: 'Tamil' }
-                        ].map((language, index) => (
-                            <div key={index} className="flex flex-col items-center p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/50 hover:bg-white/80 transition-colors">
-                                <span className="text-2xl mb-2">{language.flag}</span>
-                                <span className="text-sm font-medium text-gray-800">{language.name}</span>
-                                <span className="text-xs text-gray-500">{language.english}</span>
-                            </div>
-                        ))}
                     </div>
                 </div>
 

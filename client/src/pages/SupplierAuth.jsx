@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, Users, Eye, EyeOff, User, Building, Phone, Mail, MapPin } from 'lucide-react'
-import { useAuthStore } from '../store/authStore'
-import { useLanguage } from '../context/LanguageContext'
-import LanguageSelector from '../components/LanguageSelector'
+import { useAuthStore } from '../context/AuthContext'
 
 const SupplierAuth = () => {
     const [mode, setMode] = useState('login')
@@ -21,7 +19,6 @@ const SupplierAuth = () => {
     const navigate = useNavigate()
     const location = useLocation()
     const { login, signup, loading, error, user } = useAuthStore()
-    const { t } = useLanguage()
 
     const from = location.state?.from?.pathname || '/supplier-dashboard'
 
@@ -52,11 +49,7 @@ const SupplierAuth = () => {
 
         try {
             if (mode === 'login') {
-                await login({
-                    email: formData.email,
-                    password: formData.password,
-                    type: 'supplier'
-                })
+                await login(formData.email, formData.password, 'supplier')
                 // Navigate with replace to remove auth pages from history
                 navigate('/supplier-dashboard', { replace: true })
             } else {
@@ -88,7 +81,6 @@ const SupplierAuth = () => {
                     <ArrowLeft className="w-5 h-5" />
                     <span className="font-medium">Back to Role Selection</span>
                 </Link>
-                <LanguageSelector />
             </div>
 
             <div className="flex items-center justify-center min-h-screen px-6 pt-20">
