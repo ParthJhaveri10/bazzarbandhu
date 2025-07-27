@@ -1,4 +1,4 @@
-// import { useAuthStore } from '../store/authStore'
+import { useAuthStore } from '../store/authStore'
 
 // Generate unique ID for users
 export const generateUserId = (type, email) => {

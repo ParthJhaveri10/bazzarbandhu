@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { LanguageProvider } from './context/LanguageContext'
-import { AuthProvider, useAuthStore } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 
 // Import Pages
 import RoleSelection from './pages/RoleSelection'
@@ -12,7 +12,7 @@ import SupplierDashboard from './pages/SupplierDashboard'
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole = null }) => {
-  const { user, isAuthenticated } = useAuthStore()
+  const { user, isAuthenticated } = useAuth()
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />
@@ -34,7 +34,7 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
 
 // Public Route Component (redirect if already authenticated)
 const PublicRoute = ({ children }) => {
-  const { user, isAuthenticated } = useAuthStore()
+  const { user, isAuthenticated } = useAuth()
 
   if (isAuthenticated && user) {
     // Redirect to appropriate dashboard based on user type

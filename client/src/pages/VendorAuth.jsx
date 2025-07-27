@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, Package, Eye, EyeOff, User, Building, Phone, Mail, MapPin } from 'lucide-react'
-import { useAuthStore } from '../context/AuthContext'
+import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import LanguageSelector from '../components/LanguageSelector'
 
@@ -20,7 +20,7 @@ const VendorAuth = () => {
 
     const navigate = useNavigate()
     const location = useLocation()
-    const { login, signup, loading, error, user } = useAuthStore()
+    const { login, signup, loading, error, user } = useAuth()
     const { t } = useLanguage()
 
     useEffect(() => {
