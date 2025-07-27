@@ -545,7 +545,7 @@ const translations = {
 
 export const LanguageProvider = ({ children }) => {
   const [currentLanguage, setCurrentLanguage] = useState('hi') // Default to Hindi
-  
+
   const t = (key) => {
     return translations[currentLanguage]?.[key] || translations.en[key] || key
   }

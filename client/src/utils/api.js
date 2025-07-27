@@ -18,11 +18,6 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
-    }
-    
     return config
   },
   (error) => {
@@ -34,10 +29,6 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    // Log response in development
-    if (import.meta.env.DEV) {
-      console.log(`API Response: ${response.status} ${response.config.url}`)
-    }
     return response
   },
   (error) => {

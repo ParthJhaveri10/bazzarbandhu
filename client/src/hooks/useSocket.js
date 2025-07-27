@@ -14,19 +14,17 @@ export const useSocket = () => {
     }
 
     try {
-      socketRef.current = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:5000', {
+      socketRef.current = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3001', {
         transports: ['websocket', 'polling'],
         timeout: 20000,
         autoConnect: true,
       })
 
       socketRef.current.on('connect', () => {
-        console.log('Connected to server')
         toast.success('Connected to real-time updates')
       })
 
       socketRef.current.on('disconnect', (reason) => {
-        console.log('Disconnected from server:', reason)
         if (reason === 'io server disconnect') {
           // Server disconnected, reconnect
           socketRef.current.connect()
@@ -40,7 +38,6 @@ export const useSocket = () => {
 
       // Real-time order updates
       socketRef.current.on('orderUpdate', (data) => {
-        console.log('Order update received:', data)
         handleRealtimeUpdate({
           type: 'ORDER_CREATED',
           payload: data
@@ -49,7 +46,6 @@ export const useSocket = () => {
 
       // Real-time pool updates
       socketRef.current.on('poolUpdate', (data) => {
-        console.log('Pool update received:', data)
         handleRealtimeUpdate({
           type: 'POOL_UPDATED',
           payload: data
@@ -58,7 +54,6 @@ export const useSocket = () => {
 
       // Order pooled notification
       socketRef.current.on('orderPooled', (data) => {
-        console.log('Order pooled:', data)
         handleRealtimeUpdate({
           type: 'ORDER_POOLED',
           payload: data
@@ -67,13 +62,11 @@ export const useSocket = () => {
 
       // Supplier notifications
       socketRef.current.on('supplierNotification', (data) => {
-        console.log('Supplier notification:', data)
         toast.success(data.message)
       })
 
       // Pool ready notification
       socketRef.current.on('poolReady', (data) => {
-        console.log('Pool ready for delivery:', data)
         toast.success(`Pool ${data.poolId} is ready for delivery!`)
         handleRealtimeUpdate({
           type: 'POOL_UPDATED',
@@ -83,7 +76,6 @@ export const useSocket = () => {
 
       // Vendor notifications
       socketRef.current.on('vendorNotification', (data) => {
-        console.log('Vendor notification:', data)
         toast.info(data.message)
       })
 

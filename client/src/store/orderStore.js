@@ -148,7 +148,8 @@ const useOrderStore = create(devtools((set, get) => ({
         break
         
       default:
-        console.log('Unknown real-time update type:', type)
+        // Unknown real-time update type - no action needed
+        break
     }
   },
 

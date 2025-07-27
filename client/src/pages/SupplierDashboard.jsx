@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useOrderStore } from '../store/orderStore'
+import { useAuthStore } from '../store/authStore'
 import { useSocket } from '../hooks/useSocket'
 import { useLanguage } from '../context/LanguageContext'
 import { 
@@ -11,33 +13,60 @@ import {
   MapPin, 
   Phone,
   Send,
-  AlertCircle
+  AlertCircle,
+  Home,
+  LogOut,
+  Menu,
+  User
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const SupplierDashboard = () => {
-  const [supplierId, setSupplierId] = useState('')
   const [selectedPool, setSelectedPool] = useState(null)
   const [deliveryStatus, setDeliveryStatus] = useState({})
   
   const { pools, orders, fetchPools, updateOrderStatus } = useOrderStore()
+  const { user, isAuthenticated, logout } = useAuthStore()
   const { joinSupplierRoom, leaveSupplierRoom, emitEvent } = useSocket()
   const { t } = useLanguage()
+  const navigate = useNavigate()
+
+  // Get supplier ID from authenticated user
+  const supplierId = user?.supplierId || user?.id
+
+  // Navigation functions
+  const handleLogout = () => {
+    logout()
+    navigate('/', { replace: true })
+  }
+
+  const handleGoHome = () => {
+    navigate('/home')
+  }
+
+  const handleGoToVendorAuth = () => {
+    // Logout current session and go to vendor auth
+    logout()
+    navigate('/auth/vendor', { replace: true })
+  }
 
   useEffect(() => {
-    // Load saved supplier ID from localStorage
-    const savedSupplierId = localStorage.getItem('supplierId')
-    if (savedSupplierId) {
-      setSupplierId(savedSupplierId)
+    // Redirect to login if not authenticated or not a supplier
+    if (!isAuthenticated || !user) {
+      navigate('/supplier-auth', { replace: true })
+      return
+    }
+    
+    if (user.type !== 'supplier') {
+      navigate('/', { replace: true })
+      return
     }
     
     fetchPools()
-  }, [])
+  }, [isAuthenticated, user, navigate])
 
   useEffect(() => {
-    if (supplierId) {
-      // Save to localStorage
-      localStorage.setItem('supplierId', supplierId)
+    if (supplierId && isAuthenticated) {
       // Join supplier room for real-time updates
       joinSupplierRoom(supplierId)
       
@@ -45,7 +74,7 @@ const SupplierDashboard = () => {
         leaveSupplierRoom(supplierId)
       }
     }
-  }, [supplierId, joinSupplierRoom, leaveSupplierRoom])
+  }, [supplierId, isAuthenticated, joinSupplierRoom, leaveSupplierRoom])
 
   const getPoolOrders = (poolId) => {
     return orders.filter(order => order.poolId === poolId)
@@ -148,35 +177,17 @@ const SupplierDashboard = () => {
     }
   }
 
-  if (!supplierId) {
+  // Loading state while checking authentication
+  if (!isAuthenticated || !user || user.type !== 'supplier') {
     return (
       <div className="max-w-md mx-auto mt-16">
-        <div className="card">
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl p-8 border border-white/50">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            Welcome, Supplier!
+            Loading...
           </h2>
-          <p className="text-gray-600 mb-6 text-center">
-            Enter your supplier ID to access your delivery dashboard
+          <p className="text-gray-600 text-center">
+            Checking authentication status
           </p>
-          
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={supplierId}
-              onChange={(e) => setSupplierId(e.target.value)}
-              placeholder="Enter Supplier ID"
-              className="input w-full"
-              required
-            />
-            
-            <button
-              onClick={() => supplierId && fetchPools()}
-              disabled={!supplierId.trim()}
-              className="btn btn-primary w-full"
-            >
-              Access Dashboard
-            </button>
-          </div>
         </div>
       </div>
     )
@@ -192,12 +203,69 @@ const SupplierDashboard = () => {
   )
 
   return (
-    <div className="space-y-8">
+    <div className="min-h-screen bg-gray-50">
+      {/* Navigation Bar */}
+      <nav className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo/Brand */}
+            <div className="flex items-center">
+              <Package className="w-8 h-8 text-blue-600 mr-2" />
+              <span className="text-xl font-bold text-gray-900">VoiceCart</span>
+              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                Supplier
+              </span>
+            </div>
+
+            {/* User Menu */}
+            <div className="flex items-center space-x-4">
+              {/* User Info */}
+              <div className="hidden md:flex items-center text-sm text-gray-700">
+                <User className="w-4 h-4 mr-1" />
+                <span>{user?.name}</span>
+              </div>
+
+              {/* Navigation Buttons */}
+              <button
+                onClick={handleGoHome}
+                className="flex items-center px-3 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-md transition-colors"
+              >
+                <Home className="w-4 h-4 mr-1" />
+                <span className="hidden sm:block">Home</span>
+              </button>
+
+              {/* Quick Access Menu */}
+              <div className="hidden md:flex items-center space-x-2 px-3 py-1 bg-gray-100 rounded-md">
+                <span className="text-xs text-gray-600">Switch to:</span>
+                <button
+                  onClick={handleGoToVendorAuth}
+                  className="text-xs text-blue-600 hover:text-blue-700 hover:underline px-1 py-0.5 rounded hover:bg-blue-50 transition-colors"
+                  title="Switch to Vendor mode (will logout current session)"
+                >
+                  Vendor
+                </button>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+              >
+                <LogOut className="w-4 h-4 mr-1" />
+                <span className="hidden sm:block">Logout</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Supplier Dashboard</h1>
-          <p className="text-gray-600 mt-2">Supplier ID: {supplierId}</p>
+          <p className="text-gray-600 mt-2">Welcome, {user?.name} ({user?.businessName})</p>
+          <p className="text-sm text-gray-500">Supplier ID: {supplierId}</p>
         </div>
         
         <div className="flex items-center space-x-4">
@@ -210,10 +278,10 @@ const SupplierDashboard = () => {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center">
-            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-              <Package className="w-6 h-6 text-primary-600" />
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Package className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Pools</p>
@@ -222,7 +290,7 @@ const SupplierDashboard = () => {
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center">
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <CheckCircle className="w-6 h-6 text-green-600" />
@@ -234,7 +302,7 @@ const SupplierDashboard = () => {
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Truck className="w-6 h-6 text-blue-600" />
@@ -246,7 +314,7 @@ const SupplierDashboard = () => {
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center">
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
               <Users className="w-6 h-6 text-yellow-600" />
@@ -263,7 +331,7 @@ const SupplierDashboard = () => {
 
       {/* Ready for Dispatch Section */}
       {readyPools.length > 0 && (
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-900">Ready for Dispatch</h2>
             <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -296,11 +364,11 @@ const SupplierDashboard = () => {
 
                   <div className="grid grid-cols-3 gap-4 mb-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-primary-600">{stats.orderCount}</p>
+                      <p className="text-2xl font-bold text-blue-600">{stats.orderCount}</p>
                       <p className="text-xs text-gray-500">Orders</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-accent-600">{stats.vendors}</p>
+                      <p className="text-2xl font-bold text-green-600">{stats.vendors}</p>
                       <p className="text-xs text-gray-500">Vendors</p>
                     </div>
                     <div className="text-center">
@@ -334,13 +402,13 @@ const SupplierDashboard = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelectedPool(pool)}
-                      className="btn btn-secondary flex-1 text-sm"
+                      className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 flex-1 text-sm"
                     >
                       View Details
                     </button>
                     <button
                       onClick={() => handleDispatchPool(pool)}
-                      className="btn btn-primary flex-1 text-sm"
+                      className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex-1 text-sm"
                     >
                       <Send className="w-4 h-4 mr-1" />
                       Dispatch
@@ -354,7 +422,7 @@ const SupplierDashboard = () => {
       )}
 
       {/* All Pools */}
-      <div className="card">
+      <div className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-xl font-semibold text-gray-900 mb-6">All Pools</h2>
         
         {pools.length === 0 ? (
@@ -396,11 +464,11 @@ const SupplierDashboard = () => {
                   
                   <div className="grid grid-cols-4 gap-4 mb-4">
                     <div className="text-center">
-                      <p className="text-lg font-bold text-primary-600">{stats.orderCount}</p>
+                      <p className="text-lg font-bold text-blue-600">{stats.orderCount}</p>
                       <p className="text-xs text-gray-500">Orders</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-lg font-bold text-accent-600">{stats.vendors}</p>
+                      <p className="text-lg font-bold text-green-600">{stats.vendors}</p>
                       <p className="text-xs text-gray-500">Vendors</p>
                     </div>
                     <div className="text-center">
@@ -414,7 +482,7 @@ const SupplierDashboard = () => {
                         {currentStatus === 'collecting' && stats.readyForDispatch && (
                           <button
                             onClick={() => handleDispatchPool(pool)}
-                            className="btn btn-primary text-xs px-2 py-1"
+                            className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
                           >
                             Dispatch
                           </button>
@@ -423,7 +491,7 @@ const SupplierDashboard = () => {
                         {currentStatus === 'dispatched' && (
                           <button
                             onClick={() => handleCompleteDelivery(pool)}
-                            className="btn btn-accent text-xs px-2 py-1"
+                            className="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
                           >
                             Complete
                           </button>
@@ -431,7 +499,7 @@ const SupplierDashboard = () => {
                         
                         <button
                           onClick={() => setSelectedPool(pool)}
-                          className="btn btn-secondary text-xs px-2 py-1"
+                          className="bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600 text-xs"
                         >
                           Details
                         </button>
@@ -515,6 +583,8 @@ const SupplierDashboard = () => {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   )
 }

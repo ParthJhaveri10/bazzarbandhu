@@ -1,6 +1,7 @@
 import express from 'express'
 import multer from 'multer'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
 import Order from '../models/Order.js'
@@ -10,15 +11,12 @@ const router = express.Router()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Initialize OpenAI only if API key is provided
-let openai = null
-if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-placeholder-key-get-real-key-from-openai') {
-  openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  })
-} else {
-  console.warn('⚠️  OpenAI API key not configured. Voice transcription will use mock responses.')
-}
+// Force OpenAI initialization with our working API key
+const openai = new OpenAI({
+  apiKey: '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'
+})
+
+console.log('✅ OpenAI API configured with hardcoded key for sprint')
 
 // Configure multer for audio file uploads
 const storage = multer.diskStorage({
@@ -108,6 +106,15 @@ router.post('/process', upload.single('audio'), async (req, res) => {
     const { vendorPhone, location } = req.body
     const audioFile = req.file
 
+    console.log('🎤 Voice processing request received')
+    console.log('📝 Request body:', { vendorPhone, location })
+    console.log('📁 Audio file info:', audioFile ? {
+      filename: audioFile.filename,
+      path: audioFile.path,
+      size: audioFile.size,
+      mimetype: audioFile.mimetype
+    } : 'No file')
+
     if (!audioFile) {
       return res.status(400).json({
         success: false,
@@ -122,36 +129,22 @@ router.post('/process', upload.single('audio'), async (req, res) => {
       })
     }
 
-    console.log(`Processing voice order for vendor: ${vendorPhone}`)
-
-    // Check if OpenAI is available
-    if (!openai) {
-      // Mock response for development when OpenAI is not configured
-      const mockOrder = {
-        orderId: `mock-${Date.now()}`,
-        vendorPhone,
-        items: [
-          { item: 'rice', quantity: '5', unit: 'kg' },
-          { item: 'dal', quantity: '2', unit: 'kg' },
-          { item: 'onions', quantity: '3', unit: 'kg' }
-        ],
-        transcript: 'Mock transcript: 5 kg rice, 2 kg dal, 3 kg onions',
-        confidence: 0.95,
-        totalEstimate: 450,
-        status: 'pending',
-        createdAt: new Date()
-      }
-
-      console.log('Using mock data - OpenAI not configured')
-      return res.json({
-        success: true,
-        data: mockOrder
+    // Check if file exists before processing
+    if (!fs.existsSync(audioFile.path)) {
+      console.error('❌ Audio file does not exist at path:', audioFile.path)
+      return res.status(500).json({
+        success: false,
+        error: `Audio file not found at path: ${audioFile.path}`
       })
     }
 
+    console.log(`✅ Processing voice order for vendor: ${vendorPhone}`)
+    console.log(`📁 Audio file exists at: ${audioFile.path}`)
+
     // Step 1: Convert speech to text using Whisper
+    console.log('🔄 Starting OpenAI Whisper transcription...')
     const transcription = await openai.audio.transcriptions.create({
-      file: require('fs').createReadStream(audioFile.path),
+      file: fs.createReadStream(audioFile.path),
       model: 'whisper-1',
       language: 'hi', // Hindi as primary, but Whisper auto-detects other languages
       response_format: 'verbose_json', // Get more detailed response
@@ -166,40 +159,53 @@ router.post('/process', upload.single('audio'), async (req, res) => {
     console.log(`Language detected: ${transcription.language || 'hindi'}`)
     console.log(`Confidence: ${confidence}`)
 
-    // Step 2: Extract order details using GPT
+    // Step 2: Enhanced order parsing with our proven GPT-4 logic
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4', // Using GPT-4 for better multilingual understanding
+      model: 'gpt-4',
       messages: [
         {
           role: 'system',
-          content: `You are a helpful assistant that extracts food/grocery items from Indian vendor orders in multiple Indian languages (Hindi, English, Tamil, Telugu, Bengali, Marathi, etc.). 
-          
-          Parse the transcript and extract items with quantities. Handle mixed language orders and local language terms.
-          
-          Common items and their local names:
-          - Rice: चावल (chawal), rice, அரிசி (arisi), బియ్యం (biryani)
-          - Lentils: दाल (dal), lentils, பருப்பு (paruppu), పప్పు (pappu)
-          - Oil: तेल (tel), oil, எண்ணெய் (ennai), నూనె (noone)
-          - Onions: प्याज (pyaz), onions, வெங்காயம் (vengayam), ఉల్లిపాయ (ullipaya)
-          - Potatoes: आलू (aloo), potatoes, உருளைக்கிழங்கு (urulaikilangu), బంగాళదుంప (bangaladumpa)
-          
-          Return a JSON object with an "items" array where each item has: item (in English), quantity, unit.
-          If quantities are unclear, use reasonable defaults (1-5 kg for most items).
-          
-          Example output:
-          {
-            "items": [
-              {"item": "rice", "quantity": "5", "unit": "kg"},
-              {"item": "dal", "quantity": "2", "unit": "kg"}
-            ],
-            "confidence": 0.9,
-            "language_detected": "hindi",
-            "original_terms": ["चावल", "दाल"]
-          }`
+          content: `You are an expert assistant for Indian street vendors. Parse Hindi/English voice orders into structured data.
+
+CONTEXT: This is for Mumbai street vendors ordering groceries/supplies from local suppliers.
+
+INSTRUCTIONS:
+1. Extract items, quantities, and units from the Hindi/English mixed speech
+2. Convert Hindi items to English equivalents
+3. Use reasonable defaults for unclear quantities
+4. Include price estimates based on Mumbai market rates
+
+COMMON ITEMS & PRICING (₹ per kg):
+- आलू/Aloo/Potato: ₹30/kg
+- प्याज/Pyaz/Onion: ₹40/kg  
+- चावल/Chawal/Rice: ₹80/kg
+- दाल/Dal/Lentils: ₹120/kg
+- तेल/Tel/Oil: ₹150/liter
+- आटा/Atta/Wheat flour: ₹60/kg
+- चीनी/Cheeni/Sugar: ₹50/kg
+
+Return JSON only:
+{
+  "items": [
+    {
+      "name": "potato",
+      "hindi": "आलू",
+      "quantity": 2,
+      "unit": "kg", 
+      "price_per_unit": 30,
+      "total_price": 60,
+      "supplier_id": "supp_001"
+    }
+  ],
+  "total_amount": 60,
+  "unavailable_items": [],
+  "area": "mumbai",
+  "confidence": 0.95
+}`
         },
         {
           role: 'user',
-          content: `Extract items from this order: "${transcript}"`
+          content: `Parse this vendor order: "${transcript}"`
         }
       ],
       temperature: 0.2 // Lower temperature for more consistent results
@@ -210,14 +216,26 @@ router.post('/process', upload.single('audio'), async (req, res) => {
       orderData = JSON.parse(completion.choices[0].message.content)
     } catch (parseError) {
       console.error('Error parsing GPT response:', parseError)
-      // Fallback: simple text parsing
+      // Enhanced fallback with our logic
       orderData = {
-        items: [{ item: transcript, quantity: '1', unit: 'kg' }],
-        confidence: 0.5
+        items: [
+          { 
+            name: 'mixed_items', 
+            hindi: transcript,
+            quantity: 1, 
+            unit: 'order',
+            price_per_unit: 100,
+            total_price: 100,
+            supplier_id: 'supp_001'
+          }
+        ],
+        total_amount: 100,
+        confidence: 0.5,
+        area: 'mumbai'
       }
     }
 
-    // Step 3: Calculate estimated value
+    // Step 3: Calculate estimated value and standardize item format
     const priceMap = {
       'rice': 80, 'chawal': 80, 'dal': 120, 'oil': 150, 'tel': 150,
       'onion': 40, 'pyaz': 40, 'potato': 30, 'aloo': 30,
@@ -225,86 +243,78 @@ router.post('/process', upload.single('audio'), async (req, res) => {
     }
 
     let estimatedValue = 0
-    orderData.items.forEach(item => {
-      const quantity = parseFloat(item.quantity) || 1
-      const price = priceMap[item.item.toLowerCase()] || 50
-      estimatedValue += quantity * price
-    })
+    
+    // Standardize the item format and calculate pricing
+    if (orderData.items) {
+      orderData.items = orderData.items.map(item => {
+        // Handle both 'name' and 'item' fields from different GPT responses
+        const itemName = item.name || item.item || 'unknown'
+        const quantity = parseFloat(item.quantity) || 1
+        const unit = item.unit || 'kg'
+        const hindi = item.hindi || itemName
+        
+        // Calculate price using our price map
+        const pricePerUnit = item.price_per_unit || priceMap[itemName.toLowerCase()] || 50
+        const totalPrice = quantity * pricePerUnit
+        estimatedValue += totalPrice
+        
+        // Return standardized format
+        return {
+          item: itemName,           // Standardized field name
+          name: itemName,           // Keep both for compatibility
+          quantity: quantity,
+          unit: unit,
+          hindi: hindi,
+          price_per_unit: pricePerUnit,
+          total_price: totalPrice,
+          supplier_id: item.supplier_id || 'supp_001'
+        }
+      })
+    }
+
+    // Use calculated value or fallback to GPT's estimate
+    const finalEstimatedValue = estimatedValue || orderData.total_amount || 100
 
     // Step 4: Parse location
     const parsedLocation = parseLocation(location)
 
-    // Step 5: Create order
-    const order = new Order({
-      vendorPhone,
-      items: orderData.items,
-      location: parsedLocation,
-      transcript,
-      confidence: confidence || orderData.confidence || 0.8,
-      estimatedValue,
-      status: 'pending',
-      metadata: {
-        audioFileUrl: `/uploads/${audioFile.filename}`,
-        processingTime: Date.now() - Date.parse(req.headers['x-request-start'] || Date.now()),
-        languageDetected: transcription.language || orderData.language_detected || 'hindi',
-        originalTerms: orderData.original_terms || [],
-        whisperConfidence: confidence
-      }
-    })
-
-    await order.save()
-
-    // Step 6: Try to add to existing pool or create new one
-    try {
-      const pool = await findOrCreatePool(parsedLocation)
-      
-      // Add order to pool
-      await pool.addOrder(order._id, estimatedValue)
-      
-      // Update order with pool ID
-      order.poolId = pool._id
-      order.status = 'pooled'
-      await order.save()
-
-      console.log(`Order added to pool: ${pool._id}`)
-
-      // Emit real-time updates
-      if (req.app.locals.io) {
-        req.app.locals.io.emitOrderUpdate(order)
-        req.app.locals.io.emitOrderPooled(order, pool._id)
-        
-        // Check if pool is ready
-        if (pool.isReadyForDispatch()) {
-          req.app.locals.io.emitPoolReady(pool)
-        }
-      }
-    } catch (poolError) {
-      console.error('Error handling pool:', poolError)
-      // Order still created, just not pooled yet
-    }
-
-    // Step 7: Send response
+    // SPRINT VERSION: Skip order creation and pool logic - just return transcription
+    console.log('🚀 SPRINT: Skipping database operations, returning transcription directly')
+    
+    // Step 5: Send response directly with transcription
+    console.log('✅ Voice processing completed successfully')
     res.json({
       success: true,
       data: {
-        orderId: order._id,
+        orderId: `temp-${Date.now()}`, // Temporary ID for demo
         transcript,
         items: orderData.items,
         location: parsedLocation,
-        confidence: orderData.confidence,
-        estimatedValue,
-        poolId: order.poolId,
+        confidence: Math.max(0, orderData.confidence || 0.8),
+        estimatedValue: finalEstimatedValue,
+        poolId: null, // No pool for sprint demo
         languageDetected: transcription.language || orderData.language_detected || 'hindi'
       }
     })
 
   } catch (error) {
-    console.error('Voice processing error:', error)
+    console.error('❌ Voice processing error:', error)
     res.status(500).json({
       success: false,
       error: 'Failed to process voice order',
-      details: error.message
+      details: error.message,
+      stack: error.stack
     })
+  } finally {
+    // Cleanup: Remove uploaded file after processing
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path)
+        console.log('🗑️ Cleaned up uploaded file:', req.file.path)
+      } catch (cleanupError) {
+        console.error('⚠️ Failed to cleanup uploaded file:', cleanupError.message)
+      }
+    }
   }
 })
 
