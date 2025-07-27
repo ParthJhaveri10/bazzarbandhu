@@ -645,16 +645,21 @@ const Home = () => {
                   {processedOrder.items.map((item, index) => (
                     <div key={index} className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
                       <div className="flex-1">
-                        <span className="font-medium text-gray-800">
+                        <span className="font-medium text-gray-800 text-lg">
                           {item.quantity} {item.unit} {item.item}
                         </span>
                         {item.hindi && (
-                          <span className="text-gray-500 ml-2">({item.hindi})</span>
+                          <span className="text-gray-500 ml-2 text-sm">({item.hindi})</span>
                         )}
                       </div>
-                      <span className="font-bold text-green-600 text-lg">
-                        ₹{item.price_per_unit}
-                      </span>
+                      <div className="text-right">
+                        <div className="font-bold text-green-600 text-xl">
+                          ₹{item.price || item.price_per_unit || 0}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          per {item.unit}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
