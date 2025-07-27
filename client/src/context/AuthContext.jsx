@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }) => {
         setError(null)
         
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+            const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
             
             const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
@@ -89,7 +89,7 @@ export const AuthProvider = ({ children }) => {
         setError(null)
         
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+            const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
             
             const signupData = {
                 email: userData.email,

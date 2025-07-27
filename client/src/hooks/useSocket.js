@@ -14,7 +14,7 @@ export const useSocket = () => {
     }
 
     try {
-      socketRef.current = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3001', {
+      socketRef.current = io(import.meta.env.VITE_SERVER_URL || 'https://bazzarbandhu.vercel.app', {
         transports: ['websocket', 'polling'],
         timeout: 20000,
         autoConnect: true,

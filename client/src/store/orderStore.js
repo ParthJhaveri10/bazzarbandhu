@@ -76,7 +76,7 @@ const useOrderStore = create(
           formData.append('audio', audioData)
           formData.append('language', language)
 
-          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+          const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
           const response = await fetch(`${API_URL}/voice/process`, {
             method: 'POST',
             body: formData,
@@ -133,7 +133,7 @@ const useOrderStore = create(
         set({ isLoading: true, error: null })
         
         try {
-          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+          const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
           const response = await fetch(`${API_URL}/voice/orders/${vendorPhone}`)
           
           if (!response.ok) {
@@ -182,7 +182,7 @@ const useOrderStore = create(
         set({ isLoading: true, error: null })
         
         try {
-          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+          const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
           const response = await fetch(`${API_URL}/voice/orders/supplier/pending`)
           
           if (!response.ok) {
@@ -281,7 +281,7 @@ const useOrderStore = create(
         set({ isLoading: true, error: null })
         
         try {
-          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+          const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
           const response = await fetch(`${API_URL}/voice/orders/${orderId}/status`, {
             method: 'PATCH',
             headers: {
