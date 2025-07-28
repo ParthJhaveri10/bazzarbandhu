@@ -180,7 +180,7 @@ const Home = () => {
 
       console.log('📤 Sending request to voice/process')
 
-      const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
+      const API_URL = 'https://bazzarbandhu.vercel.app/api'
       const response = await fetch(`${API_URL}/voice/process`, {
         method: 'POST',
         body: formData
@@ -276,7 +276,7 @@ const Home = () => {
       }
 
       // For demo purposes, use the voice processing API that already works
-      const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
+      const API_URL = 'https://bazzarbandhu.vercel.app/api'
       console.log('📡 Sending to dashboard via voice API')
 
       // Since the voice processing already created the order, just show success

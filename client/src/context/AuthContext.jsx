@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }) => {
         setError(null)
         
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
+            const API_URL = 'https://bazzarbandhu.vercel.app/api'
             
             const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
@@ -55,6 +55,12 @@ export const AuthProvider = ({ children }) => {
                 },
                 body: JSON.stringify({ email, password })
             })
+
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type')
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Server returned invalid response. Please try again.')
+            }
 
             const result = await response.json()
 
@@ -72,7 +78,7 @@ export const AuthProvider = ({ children }) => {
                 
                 return { success: true, user: userData }
             } else {
-                throw new Error(result.error || 'Login failed')
+                throw new Error(result.message || 'Login failed')
             }
         } catch (error) {
             console.error('❌ Login error:', error)
@@ -89,7 +95,7 @@ export const AuthProvider = ({ children }) => {
         setError(null)
         
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'https://bazzarbandhu.vercel.app/api'
+            const API_URL = 'https://bazzarbandhu.vercel.app/api'
             
             const signupData = {
                 email: userData.email,
@@ -110,6 +116,12 @@ export const AuthProvider = ({ children }) => {
                 body: JSON.stringify(signupData)
             })
 
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type')
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Server returned invalid response. Please try again.')
+            }
+
             const result = await response.json()
 
             if (response.ok && result.success) {
@@ -125,7 +137,7 @@ export const AuthProvider = ({ children }) => {
                 
                 return { success: true, user: newUser }
             } else {
-                throw new Error(result.error || 'Signup failed')
+                throw new Error(result.message || 'Signup failed')
             }
         } catch (error) {
             console.error('❌ Signup error:', error)
