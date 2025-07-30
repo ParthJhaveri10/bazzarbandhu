@@ -1,16 +1,28 @@
-import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 
-// Ensure environment variables are loaded
-dotenv.config()
+// Load environment variables from .env file
+dotenv.config();
 
-const supabaseUrl = process.env.SUPABASE_URL || 'your-supabase-url'
-const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-supabase-anon-key'
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Supabase URL and Anon Key must be defined in the .env file");
+}
 
-// For server-side operations with service role key
-export const supabaseAdmin = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || 'your-service-role-key'
-)
+// Create the regular Supabase client (with anon key)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Create the admin Supabase client (with service key for server operations)
+export const supabaseAdmin = supabaseServiceKey ?
+  createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }) : supabase;
+
+// Default export for compatibility
+export default supabase;

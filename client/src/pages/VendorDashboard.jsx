@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOrderStore } from '../store/orderStore'
 import { useSocket } from '../hooks/useSocket'
-import { useAuthStore } from '../context/AuthContext'
+import { useAuth } from '../context/AuthContext'
 import VoiceRecorder from '../components/VoiceRecorder'
 import {
   Package,
@@ -22,7 +22,7 @@ const VendorDashboard = () => {
   const [showOrderForm, setShowOrderForm] = useState(false)
   const { orders, getOrdersByVendor, fetchOrders } = useOrderStore()
   const { joinVendorRoom, leaveVendorRoom } = useSocket()
-  const { user, logout } = useAuthStore()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   // Use authenticated vendor's phone from user object

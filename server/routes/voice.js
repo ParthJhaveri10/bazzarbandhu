@@ -82,18 +82,24 @@ const upload = multer({
 
 // Process voice order - Real transcription and parsing
 router.post('/process', upload.single('audio'), async (req, res) => {
+  console.log('--- Received /voice/process request ---');
   try {
     const { vendorPhone, location } = req.body
     const audioFile = req.file
 
+    console.log('Request Body:', req.body);
+    console.log('Request File:', req.file);
+
     if (!audioFile) {
+      console.error('❌ Error: No audio file was received by the server.');
       return res.status(400).json({
         success: false,
-        error: 'No audio file provided'
+        error: 'No audio file provided. Multer may have failed to process the upload.'
       })
     }
 
     if (!vendorPhone) {
+      console.error('❌ Error: Vendor phone number is missing.');
       return res.status(400).json({
         success: false,
         error: 'Vendor phone number is required'
@@ -102,6 +108,8 @@ router.post('/process', upload.single('audio'), async (req, res) => {
 
     console.log(`Processing voice order for vendor: ${vendorPhone}`)
     console.log(`Audio file: ${audioFile.filename}`)
+    console.log(`Audio file size: ${audioFile.size} bytes`)
+    console.log(`Audio file mimetype: ${audioFile.mimetype}`)
 
     let transcript = ''
     let confidence = 0.95
@@ -121,7 +129,7 @@ router.post('/process', upload.single('audio'), async (req, res) => {
         })
 
         transcript = transcription.text
-        console.log('📝 Transcription:', transcript)
+        console.log('📝 RAW TRANSCRIPTION:', transcript)
 
         // Extract order items using GPT
         if (transcript) {
@@ -153,21 +161,24 @@ router.post('/process', upload.single('audio'), async (req, res) => {
           try {
             const gptResponse = JSON.parse(completion.choices[0].message.content)
             extractedItems = gptResponse.items || []
-            console.log('🛒 Extracted items:', extractedItems)
+            console.log('🛒 GPT EXTRACTED ITEMS:', extractedItems)
+            console.log('🛒 Number of items extracted:', extractedItems.length)
           } catch (parseError) {
             console.error('❌ Error parsing GPT response:', parseError)
+            console.log('❌ Raw GPT response:', completion.choices[0].message.content)
             // Fall back to mock items if parsing fails
             extractedItems = [
-              { item: 'items from voice', quantity: '1', unit: 'order', price: 100 }
+              { item: 'items from voice (GPT parsing failed)', quantity: '1', unit: 'order', price: 100 }
             ]
           }
         }
 
       } catch (openaiError) {
         console.error('❌ OpenAI processing error:', openaiError)
+        console.error('❌ OpenAI error details:', openaiError.message)
         transcript = 'Voice transcription failed - using audio input'
         extractedItems = [
-          { item: 'voice order items', quantity: '1', unit: 'order', price: 150 }
+          { item: 'voice order items (OpenAI failed)', quantity: '1', unit: 'order', price: 150 }
         ]
       }
     } else {
@@ -175,9 +186,12 @@ router.post('/process', upload.single('audio'), async (req, res) => {
       console.log('⚠️ OpenAI not available - using mock transcription')
       transcript = 'Audio processed - OpenAI not configured'
       extractedItems = [
-        { item: 'grocery items', quantity: '1', unit: 'order', price: 200 }
+        { item: 'grocery items (no OpenAI)', quantity: '1', unit: 'order', price: 200 }
       ]
     }
+
+    console.log('📋 FINAL TRANSCRIPT:', transcript)
+    console.log('📋 FINAL EXTRACTED ITEMS:', extractedItems)
 
     // Calculate total
     const estimatedValue = extractedItems.reduce((total, item) => {
@@ -230,6 +244,7 @@ router.post('/process', upload.single('audio'), async (req, res) => {
       }
     }
 
+    console.log('🚀 SENDING RESPONSE TO CLIENT:', JSON.stringify(response, null, 2))
     res.json(response)
 
   } catch (error) {

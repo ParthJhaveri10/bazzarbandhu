@@ -21,7 +21,7 @@ const VendorAuth = () => {
     const { login, signup, loading, error, user } = useAuth()
 
     useEffect(() => {
-        if (user && user.type === 'vendor') {
+        if (user && user.role === 'vendor') {
             // Replace history so user can't go back to role selection
             navigate('/home', { replace: true })
         }

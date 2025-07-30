@@ -59,10 +59,10 @@ export const hasRole = (requiredRole, userRole) => {
 
 // Check if user can access vendor features
 export const canAccessVendor = (user) => {
-    return user && user.type === 'vendor'
+    return user && user.role === 'vendor'
 }
 
 // Check if user can access supplier features
 export const canAccessSupplier = (user) => {
-    return user && user.type === 'supplier'
+    return user && user.role === 'supplier'
 }

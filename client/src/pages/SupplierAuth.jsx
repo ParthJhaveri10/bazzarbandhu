@@ -23,7 +23,7 @@ const SupplierAuth = () => {
     const from = location.state?.from?.pathname || '/supplier-dashboard'
 
     useEffect(() => {
-        if (user && user.type === 'supplier') {
+        if (user && user.role === 'supplier') {
             // Replace history so user can't go back to role selection
             navigate('/supplier-dashboard', { replace: true })
         }

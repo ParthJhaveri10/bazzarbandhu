@@ -27,7 +27,7 @@ import { useOrderStore } from '../store/orderStore'
 
 const Home = () => {
   const { user, logout } = useAuth()
-  const { createOrder } = useOrderStore()
+  const { processVoiceOrder } = useOrderStore()
   const navigate = useNavigate()
 
   // Debug auth state
@@ -62,9 +62,9 @@ const Home = () => {
   }
 
   const handleDashboardNavigation = () => {
-    if (user?.type === 'vendor') {
+    if (user?.role === 'vendor') {
       navigate('/vendor-dashboard')
-    } else if (user?.type === 'supplier') {
+    } else if (user?.role === 'supplier') {
       navigate('/supplier-dashboard')
     }
     setShowProfileDropdown(false)
@@ -138,11 +138,15 @@ const Home = () => {
   }
 
   const processAudioOrder = async () => {
-    if (!audioBlob) return
+    if (!audioBlob) {
+      setProcessingError('No audio recording found. Please record your order first.')
+      setShowError(true)
+      return
+    }
 
     setIsProcessing(true)
     setProcessingError('')
-    console.log('🎤 Starting voice processing...')
+    console.log('🎤 Starting real voice processing with OpenAI Whisper...')
     console.log('📊 Audio blob details:', {
       size: audioBlob.size,
       type: audioBlob.type,
@@ -150,50 +154,53 @@ const Home = () => {
     })
 
     try {
-      // BYPASS API - Process audio directly like we did with login
-      console.log('🎤 Processing audio directly (bypassing API)')
-      
-      // Simulate voice processing response
-      const mockOrder = {
-        id: `order_${Date.now()}`,
-        items: [
-          { name: 'Tomatoes', quantity: '2 kg', price: 120 },
-          { name: 'Onions', quantity: '1 kg', price: 60 },
-          { name: 'Rice', quantity: '5 kg', price: 350 }
-        ],
-        totalPrice: 530,
-        customerPhone: user.phone || '+919876543210',
-        vendorPhone: user.phone || '+919876543210',
-        location: 'Mumbai, India',
-        status: 'pending',
-        timestamp: new Date().toISOString(),
-        audioProcessed: true
+      // Use the real voice processing function from the store
+      console.log('🎤 Calling processVoiceOrder with:', {
+        audioBlobSize: audioBlob.size,
+        audioBlobType: audioBlob.type,
+        userPhone: user?.phone || '+919876543210',
+        userAddress: user?.address || 'Mumbai, Maharashtra'
+      })
+
+      const result = await processVoiceOrder(
+        audioBlob,
+        'auto',
+        user?.phone || '+919876543210',
+        user?.address || 'Mumbai, Maharashtra'
+      )
+
+      console.log('🔍 Raw API Response:', result)
+      console.log('🔍 Result success:', result.success)
+      console.log('🔍 Result order:', result.order)
+      console.log('🔍 Result result:', result.result)
+
+      if (result.success) {
+        console.log('✅ Voice order processed successfully:', result)
+
+        // Set the transcription and processed order correctly
+        setTranscription(result.order.transcription) // Get from the created order
+        setProcessedOrder(result.order) // Use the full order object
+        setProcessingError(null)
+
+        // Show success
+        setShowSuccess(true)
+
+        // Auto hide success after 5 seconds
+        setTimeout(() => {
+          setShowSuccess(false)
+        }, 5000)
+
+        console.log('🎯 Real order created from voice:', result.order)
+        console.log('📝 Transcription:', result.order.transcription)
+        console.log('📦 Items:', result.order.items)
+
+      } else {
+        throw new Error(result.error || 'Failed to process voice order')
       }
-
-      console.log('✅ Mock order created:', mockOrder)
-
-      // Store the order using the createOrder function
-      try {
-        await createOrder(mockOrder)
-        console.log('✅ Order stored successfully')
-      } catch (storeError) {
-        console.warn('⚠️ Failed to store order:', storeError)
-        // Continue anyway since we have the order data
-      }
-
-      // Show success
-      setShowSuccess(true)
-      setCurrentOrder(mockOrder)
-      setProcessingError(null)
-
-      // Auto hide success after 5 seconds
-      setTimeout(() => {
-        setShowSuccess(false)
-      }, 5000)
 
     } catch (error) {
-      console.error('❌ Error processing order:', error)
-      setProcessingError(error.message || 'Failed to process your order. Please try again.')
+      console.error('❌ Error processing voice order:', error)
+      setProcessingError(error.message || 'Failed to process your voice order. Please try again.')
       setShowError(true)
     } finally {
       setIsProcessing(false)
@@ -202,7 +209,7 @@ const Home = () => {
 
   // Send processed order to vendor dashboard
   const sendToDashboard = async () => {
-    if (!processedOrder || !user || user.type !== 'vendor') {
+    if (!processedOrder || !user || user.role !== 'vendor') {
       setProcessingError('Unable to send order: Invalid data or unauthorized')
       return
     }
@@ -217,7 +224,7 @@ const Home = () => {
       // Check if user is authenticated with our current auth system
       const isAuthenticated = localStorage.getItem('voicecart-auth') === 'true'
       const userData = localStorage.getItem('voicecart-user')
-      
+
       console.log('� Auth check:', { isAuthenticated, hasUserData: !!userData })
 
       if (!isAuthenticated || !userData) {
@@ -313,7 +320,7 @@ const Home = () => {
                   </div>
                   <div className="text-left hidden sm:block">
                     <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{user.type}</p>
+                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
                   </div>
                   <ChevronDown className="w-4 h-4 text-gray-400" />
                 </button>
@@ -628,7 +635,7 @@ const Home = () => {
             )}
 
             {/* Send to Dashboard Button */}
-            {user && user.type === 'vendor' && processedOrder?.items && processedOrder.items.length > 0 && (
+            {user && user.role === 'vendor' && processedOrder?.items && processedOrder.items.length > 0 && (
               <div className="mt-6 flex justify-center space-x-4">
                 <button
                   onClick={sendToDashboard}
@@ -654,7 +661,7 @@ const Home = () => {
                     const token = localStorage.getItem('authToken')
                     console.log('Debug - Token:', token ? 'EXISTS' : 'MISSING')
                     console.log('Debug - User:', user)
-                    console.log('Debug - User type:', user?.type)
+                    console.log('Debug - User type:', user?.role)
                   }}
                   className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm"
                 >

@@ -10,6 +10,9 @@ import Home from './pages/Home'
 import VendorDashboard from './pages/VendorDashboard'
 import SupplierDashboard from './pages/SupplierDashboard'
 
+// Import Debug Component
+import RouteDebugger from './components/RouteDebugger'
+
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole = null }) => {
   const { user, isAuthenticated } = useAuth()
@@ -146,6 +149,9 @@ function App() {
             {/* Fallback Route - Redirect to role selection */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          
+          {/* Debug Component - Remove in production */}
+          {process.env.NODE_ENV === 'development' && <RouteDebugger />}
         </div>
       </LanguageProvider>
     </AuthProvider>
