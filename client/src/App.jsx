@@ -18,11 +18,11 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
     return <Navigate to="/" replace />
   }
 
-  if (requiredRole && user?.type !== requiredRole) {
+  if (requiredRole && user?.role !== requiredRole) {
     // Redirect to user's appropriate dashboard
-    if (user?.type === 'vendor') {
+    if (user?.role === 'vendor') {
       return <Navigate to="/home" replace />
-    } else if (user?.type === 'supplier') {
+    } else if (user?.role === 'supplier') {
       return <Navigate to="/supplier-dashboard" replace />
     } else {
       return <Navigate to="/home" replace />
@@ -37,10 +37,10 @@ const PublicRoute = ({ children }) => {
   const { user, isAuthenticated } = useAuth()
 
   if (isAuthenticated && user) {
-    // Redirect to appropriate dashboard based on user type
-    if (user.type === 'vendor') {
+    // Redirect to appropriate dashboard based on user role
+    if (user.role === 'vendor') {
       return <Navigate to="/home" replace />
-    } else if (user.type === 'supplier') {
+    } else if (user.role === 'supplier') {
       return <Navigate to="/supplier-dashboard" replace />
     } else {
       return <Navigate to="/home" replace />

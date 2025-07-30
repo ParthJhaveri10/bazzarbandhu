@@ -46,40 +46,42 @@ export const AuthProvider = ({ children }) => {
         setError(null)
         
         try {
-            const API_URL = 'https://bazzarbandhu.vercel.app/api'
+            // Use direct Supabase authentication to bypass CORS
+            console.log('📡 Using direct Supabase authentication...')
             
-            const response = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, password })
+            const { createClient } = await import('@supabase/supabase-js')
+            const supabase = createClient(
+                'https://maxviytujwpcucyflucu.supabase.co',
+                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1heHZpeXR1andwY3VjeWZsdWN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2MjEyMTMsImV4cCI6MjA2OTE5NzIxM30.O8w5_h9Bn5QmxM3xKZqwdwvT0TMoLs2SVCgDGemOR9c'
+            )
+
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password
             })
 
-            // Check if response is JSON
-            const contentType = response.headers.get('content-type')
-            if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('Server returned invalid response. Please try again.')
+            if (error) {
+                throw new Error(error.message || 'Login failed')
             }
 
-            const result = await response.json()
-
-            if (response.ok && result.success) {
-                const userData = result.user
-                console.log('✅ Login successful:', userData)
-                
-                setUser(userData)
-                setIsAuthenticated(true)
-                
-                // Store in localStorage for persistence
-                localStorage.setItem('voicecart-user', JSON.stringify(userData))
-                localStorage.setItem('voicecart-auth', 'true')
-                localStorage.setItem('voicecart-token', result.token)
-                
-                return { success: true, user: userData }
-            } else {
-                throw new Error(result.message || 'Login failed')
+            const userData = {
+                id: data.user.id,
+                email: data.user.email,
+                name: data.user.user_metadata?.name || email.split('@')[0],
+                role: userType || 'vendor'
             }
+
+            console.log('✅ Login successful:', userData)
+            
+            setUser(userData)
+            setIsAuthenticated(true)
+            
+            // Store in localStorage for persistence
+            localStorage.setItem('voicecart-user', JSON.stringify(userData))
+            localStorage.setItem('voicecart-auth', 'true')
+            localStorage.setItem('voicecart-token', data.session.access_token)
+            
+            return { success: true, user: userData }
         } catch (error) {
             console.error('❌ Login error:', error)
             setError(error.message)
@@ -95,50 +97,51 @@ export const AuthProvider = ({ children }) => {
         setError(null)
         
         try {
-            const API_URL = 'https://bazzarbandhu.vercel.app/api'
+            // Use direct Supabase authentication to bypass CORS
+            console.log('📡 Using direct Supabase signup...')
             
-            const signupData = {
+            const { createClient } = await import('@supabase/supabase-js')
+            const supabase = createClient(
+                'https://maxviytujwpcucyflucu.supabase.co',
+                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1heHZpeXR1andwY3VjeWZsdWN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2MjEyMTMsImV4cCI6MjA2OTE5NzIxM30.O8w5_h9Bn5QmxM3xKZqwdwvT0TMoLs2SVCgDGemOR9c'
+            )
+
+            const { data, error } = await supabase.auth.signUp({
                 email: userData.email,
                 password: userData.password,
-                type: userData.type || 'vendor',
-                name: userData.name || userData.businessName || userData.email.split('@')[0],
-                phone: userData.phone,
-                businessName: userData.businessName,
-                address: userData.address,
-                pincode: userData.pincode
-            }
-
-            const response = await fetch(`${API_URL}/auth/signup`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(signupData)
+                options: {
+                    data: {
+                        name: userData.name || userData.businessName || userData.email.split('@')[0],
+                        role: userData.type || 'vendor',
+                        phone: userData.phone,
+                        businessName: userData.businessName,
+                        address: userData.address,
+                        pincode: userData.pincode
+                    }
+                }
             })
 
-            // Check if response is JSON
-            const contentType = response.headers.get('content-type')
-            if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('Server returned invalid response. Please try again.')
+            if (error) {
+                throw new Error(error.message || 'Signup failed')
             }
 
-            const result = await response.json()
-
-            if (response.ok && result.success) {
-                const newUser = result.user
-                console.log('✅ Signup successful:', newUser)
-                
-                setUser(newUser)
-                setIsAuthenticated(true)
-                
-                // Store in localStorage for persistence
-                localStorage.setItem('voicecart-user', JSON.stringify(newUser))
-                localStorage.setItem('voicecart-auth', 'true')
-                
-                return { success: true, user: newUser }
-            } else {
-                throw new Error(result.message || 'Signup failed')
+            const newUser = {
+                id: data.user?.id,
+                email: data.user?.email,
+                name: userData.name || userData.businessName || userData.email.split('@')[0],
+                role: userData.type || 'vendor'
             }
+
+            console.log('✅ Signup successful:', newUser)
+            
+            setUser(newUser)
+            setIsAuthenticated(true)
+            
+            // Store in localStorage for persistence
+            localStorage.setItem('voicecart-user', JSON.stringify(newUser))
+            localStorage.setItem('voicecart-auth', 'true')
+            
+            return { success: true, user: newUser }
         } catch (error) {
             console.error('❌ Signup error:', error)
             setError(error.message)
