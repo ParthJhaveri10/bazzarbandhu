@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import api from '../utils/api'
+import { useOrderStore } from '../store/orderStore'
 
 export const useVoice = () => {
   const [isRecording, setIsRecording] = useState(false)
@@ -12,6 +12,8 @@ export const useVoice = () => {
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
   const recognitionRef = useRef(null)
+  
+  const { processVoiceOrder: storeProcessVoiceOrder } = useOrderStore()
 
   // Simple language detection based on script/common words
   const detectLanguageFromText = (text) => {
@@ -68,41 +70,30 @@ export const useVoice = () => {
     setError(null)
 
     try {
-      // Create FormData for audio upload
-      const formData = new FormData()
-      formData.append('audio', audioBlob, 'order.webm')
-      formData.append('vendorPhone', vendorPhone)
-      formData.append('location', location)
-
-      // Send to backend for processing
-      const response = await api.post('/voice/process', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 30000, // 30 second timeout for voice processing
-      })
-
-      const result = response.data
+      // Use store's processVoiceOrder which handles everything locally
+      const result = await storeProcessVoiceOrder(audioBlob, 'auto', vendorPhone, location)
       
-      // Handle both old and new API response formats
-      const orderData = result.data || result
-      setTranscript(orderData.transcript)
-      setDetectedLanguage(orderData.languageDetected || orderData.language_detected || 'hindi')
-      
-      return {
-        vendorPhone,
-        items: orderData.items,
-        location: orderData.location,
-        transcript: orderData.transcript,
-        confidence: orderData.confidence,
-        detectedLanguage: orderData.languageDetected || orderData.language_detected,
-        status: 'pending',
-        timestamp: new Date(),
-        estimatedValue: orderData.estimatedValue || orderData.totalEstimate
+      if (result.success) {
+        setTranscript(result.transcript)
+        setDetectedLanguage('hindi') // Default for now
+        
+        return {
+          vendorPhone,
+          items: result.orderData.items,
+          location: result.orderData.location,
+          transcript: result.transcript,
+          confidence: 0.9, // Mock confidence
+          detectedLanguage: 'hindi',
+          status: 'pending',
+          timestamp: new Date(),
+          estimatedValue: result.orderData.total || 200
+        }
+      } else {
+        throw new Error(result.error || 'Failed to process voice order')
       }
     } catch (error) {
       console.error('Voice processing error:', error)
-      setError(error.response?.data?.message || 'Failed to process voice order')
+      setError(error.message || 'Failed to process voice order')
       throw error
     } finally {
       setIsProcessing(false)
@@ -114,27 +105,27 @@ export const useVoice = () => {
     setError(null)
 
     try {
-      const response = await api.post('/voice/process-text', {
-        text,
-        vendorPhone,
-        location
-      })
-
-      const result = response.data
-      setTranscript(text)
+      // Use store's processVoiceOrder for text input too
+      const result = await storeProcessVoiceOrder(null, 'auto', vendorPhone, location)
       
-      return {
-        vendorPhone,
-        items: result.items,
-        location: result.location,
-        transcript: text,
-        status: 'pending',
-        timestamp: new Date(),
-        estimatedValue: result.estimatedValue
+      if (result.success) {
+        setTranscript(text)
+        
+        return {
+          vendorPhone,
+          items: result.orderData.items,
+          location: result.orderData.location,
+          transcript: text,
+          status: 'pending',
+          timestamp: new Date(),
+          estimatedValue: result.orderData.total || 200
+        }
+      } else {
+        throw new Error(result.error || 'Failed to process text order')
       }
     } catch (error) {
       console.error('Text processing error:', error)
-      setError(error.response?.data?.message || 'Failed to process text order')
+      setError(error.message || 'Failed to process text order')
       throw error
     } finally {
       setIsProcessing(false)

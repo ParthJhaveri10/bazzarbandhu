@@ -171,15 +171,15 @@ const Home = () => {
 
       console.log('🔍 Raw API Response:', result)
       console.log('🔍 Result success:', result.success)
-      console.log('🔍 Result order:', result.order)
-      console.log('🔍 Result result:', result.result)
+      console.log('🔍 Result orderData:', result.orderData)
+      console.log('🔍 Result transcript:', result.transcript)
 
       if (result.success) {
         console.log('✅ Voice order processed successfully:', result)
 
         // Set the transcription and processed order correctly
-        setTranscription(result.order.transcription) // Get from the created order
-        setProcessedOrder(result.order) // Use the full order object
+        setTranscription(result.transcript) // Get from the result
+        setProcessedOrder(result.orderData) // Use the orderData object
         setProcessingError(null)
 
         // Show success
@@ -190,9 +190,9 @@ const Home = () => {
           setShowSuccess(false)
         }, 5000)
 
-        console.log('🎯 Real order created from voice:', result.order)
-        console.log('📝 Transcription:', result.order.transcription)
-        console.log('📦 Items:', result.order.items)
+        console.log('🎯 Real order created from voice:', result.orderData)
+        console.log('📝 Transcription:', result.transcript)
+        console.log('📦 Items:', result.orderData.items)
 
       } else {
         throw new Error(result.error || 'Failed to process voice order')

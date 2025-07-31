@@ -1,5 +1,3 @@
-import { useAuthStore } from '../store/authStore'
-
 // Generate unique ID for users
 export const generateUserId = (type, email) => {
     const prefix = type === 'vendor' ? 'VND' : 'SUP'
@@ -8,48 +6,6 @@ export const generateUserId = (type, email) => {
     const emailHash = email.split('@')[0].substring(0, 3).toUpperCase()
 
     return `${prefix}-${emailHash}-${timestamp}-${random}`.toUpperCase()
-}
-
-// Check if user is authenticated
-export const isAuthenticated = () => {
-    const token = localStorage.getItem('authToken')
-    return !!token
-}
-
-// Get authentication token
-export const getAuthToken = () => {
-    return localStorage.getItem('authToken')
-}
-
-// Create authorization header
-export const getAuthHeaders = () => {
-    const token = getAuthToken()
-    return token ? { 'Authorization': `Bearer ${token}` } : {}
-}
-
-// Protected API call helper
-export const apiCall = async (url, options = {}) => {
-    const token = getAuthToken()
-
-    const config = {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeaders(),
-            ...options.headers,
-        },
-    }
-
-    const response = await fetch(url, config)
-
-    if (response.status === 401) {
-        // Token expired or invalid
-        useAuthStore.getState().logout()
-        window.location.href = '/vendor-auth'
-        throw new Error('Authentication required')
-    }
-
-    return response
 }
 
 // Role-based access control

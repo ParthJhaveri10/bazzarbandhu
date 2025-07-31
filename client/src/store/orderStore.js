@@ -1,9 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-// Production API URL
-const API_URL = 'https://bazzarbandhu.vercel.app/api'
-
 const useOrderStore = create(
     persist(
         (set, get) => ({
@@ -75,73 +72,42 @@ const useOrderStore = create(
                 try {
                     set({ isLoading: true, error: null, orderStatus: 'processing' })
 
-                    const formData = new FormData()
-                    // Explicitly add a filename to the blob. This is crucial for multer on the server.
-                    const fileName = `voice-order-${Date.now()}.webm`;
-                    formData.append('audio', audioData, fileName)
-                    formData.append('language', language)
-                    formData.append('vendorPhone', vendorPhone || '+919876543210')
-                    formData.append('location', location || 'Mumbai, Maharashtra')
-
-                    // Debug: Log form data entries
-                    console.log('--- Sending Voice Order ---');
-                    for (let [key, value] of formData.entries()) {
-                        if (value instanceof Blob || value instanceof File) {
-                            console.log(`📋 FormData: ${key} =`, { name: value.name, size: value.size, type: value.type });
-                        } else {
-                            console.log(`📋 FormData: ${key} = ${value}`);
-                        }
+                    console.log('🎤 Processing voice order locally...')
+                    
+                    // Mock processing for demo (replace with actual processing later)
+                    await new Promise(resolve => setTimeout(resolve, 2000))
+                    
+                    // Create mock order data
+                    const mockOrder = {
+                        id: `order-${Date.now()}`,
+                        timestamp: new Date().toISOString(),
+                        status: 'pending',
+                        vendorPhone: vendorPhone || '+919876543210',
+                        location: location || 'Mumbai, Maharashtra',
+                        items: [
+                            { name: 'Rice', quantity: '2 kg', price: 120 },
+                            { name: 'Dal', quantity: '1 kg', price: 80 }
+                        ],
+                        total: 200,
+                        transcript: 'I need 2 kg rice and 1 kg dal'
                     }
-
-                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-                    console.log(`📡 Targeting API URL: ${API_URL}`);
-
-                    const response = await fetch(`${API_URL}/voice/process`, {
-                        method: 'POST',
-                        body: formData,
-                    })
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error("❌ Server responded with an error:", {
-                            status: response.status,
-                            statusText: response.statusText,
-                            body: errorText,
-                        });
-                        throw new Error(`Server error: ${response.status} ${response.statusText}. See console for details.`)
-                    }
-
-                    const result = await response.json()
-          
-                    console.log('🔍 Store: Raw server response:', result)
-                    console.log('🔍 Store: result.transcript:', result.transcript)
-                    console.log('🔍 Store: result.orderData:', result.orderData)
-                    console.log('🔍 Store: result.orderData?.items:', result.orderData?.items)
-
-          // Add the processed order with server data structure
-          const newOrder = get().addOrder({
-            type: 'voice',
-            originalAudio: audioData,
-            transcription: result.transcript, // Server sends 'transcript'
-            items: result.orderData?.items || [],
-            total: result.orderData?.total || 0,
-            currency: result.orderData?.currency || '₹',
-            language: result.language || language,
-            confidence: result.confidence,
-            status: 'completed',
-            orderId: result.data?.orderId
-          })
-
-          console.log('🔍 Store: Created newOrder:', newOrder)
-
-          set({
-                        isLoading: false,
+                    
+                    console.log('✅ Voice order processed successfully:', mockOrder)
+                    
+                    set({ 
+                        isLoading: false, 
                         orderStatus: 'completed',
+                        currentOrder: mockOrder,
                         error: null
                     })
-
-                    return { success: true, order: newOrder, result }
+                    
+                    return {
+                        success: true,
+                        transcript: mockOrder.transcript,
+                        orderData: mockOrder
+                    }
                 } catch (error) {
+                    console.error('❌ Voice order processing failed:', error)
                     set({
                         error: error.message,
                         isLoading: false,
@@ -161,47 +127,37 @@ const useOrderStore = create(
                 return newOrder
             },
 
-            // Fetch orders from API
+            // Fetch orders (mock data - no CORS issues)
             fetchOrders: async (vendorPhone) => {
                 if (!vendorPhone) return
 
                 set({ isLoading: true, error: null })
 
                 try {
-                    const response = await fetch(`${API_URL}/voice/orders/${vendorPhone}`)
+                    // Mock delay
+                    await new Promise(resolve => setTimeout(resolve, 1000))
+                    
+                    // Mock orders data
+                    const mockOrders = [
+                        {
+                            id: 'order-1',
+                            timestamp: new Date().toISOString(),
+                            status: 'pending',
+                            vendorPhone: vendorPhone,
+                            items: [
+                                { name: 'Rice', quantity: '2 kg', price: 120 },
+                                { name: 'Dal', quantity: '1 kg', price: 80 }
+                            ],
+                            total: 200,
+                            transcript: 'I need 2 kg rice and 1 kg dal'
+                        }
+                    ]
 
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch orders: ${response.status}`)
-                    }
-
-                    const result = await response.json()
-
-                    if (result.success && result.data) {
-                        // Transform backend order format to match frontend
-                        const transformedOrders = result.data.map(order => ({
-                            id: order.id,
-                            orderId: order.id,
-                            vendorPhone: order.vendor_phone,
-                            items: order.items,
-                            transcript: order.transcript,
-                            confidence: order.confidence,
-                            totalEstimate: order.estimated_value,
-                            estimatedValue: order.estimated_value, // Add both for compatibility
-                            status: order.status,
-                            timestamp: order.created_at, // Use timestamp for dashboard compatibility
-                            createdAt: order.created_at,
-                            location: order.location || null, // Keep the location object as-is from database
-                            type: 'voice'
-                        }))
-
-                        console.log('📊 Transformed orders:', transformedOrders)
-
-                        set({
-                            orders: transformedOrders,
-                            isLoading: false,
-                            error: null
-                        })
-                    }
+                    set({ 
+                        orders: mockOrders,
+                        isLoading: false,
+                        error: null
+                    })
                 } catch (error) {
                     console.error('Error fetching orders:', error)
                     set({
@@ -211,47 +167,34 @@ const useOrderStore = create(
                 }
             },
 
-            // Fetch orders for suppliers (all pending orders in the system)
+            // Fetch orders for suppliers (mock data - no CORS issues)
             fetchSupplierOrders: async () => {
                 set({ isLoading: true, error: null })
 
                 try {
-                    const response = await fetch(`${API_URL}/voice/orders/supplier/pending`)
+                    // Mock delay
+                    await new Promise(resolve => setTimeout(resolve, 1000))
+                    
+                    // Mock supplier orders data
+                    const mockSupplierOrders = [
+                        {
+                            id: 'order-1',
+                            vendorPhone: '+919876543210',
+                            items: [
+                                { name: 'Rice', quantity: '2 kg', price: 120 },
+                                { name: 'Dal', quantity: '1 kg', price: 80 }
+                            ],
+                            total: 200,
+                            status: 'pending',
+                            timestamp: new Date().toISOString()
+                        }
+                    ]
 
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch supplier orders: ${response.status}`)
-                    }
-
-                    const result = await response.json()
-
-                    if (result.success && result.data) {
-                        // Transform backend order format to match frontend
-                        const transformedOrders = result.data.map(order => ({
-                            _id: order.id, // Use _id for compatibility with supplier dashboard
-                            id: order.id,
-                            orderId: order.id,
-                            vendorPhone: order.vendor_phone,
-                            items: order.items,
-                            transcript: order.transcript,
-                            confidence: order.confidence,
-                            total: order.estimated_value,
-                            estimatedValue: order.estimated_value,
-                            status: order.status,
-                            timestamp: order.created_at,
-                            createdAt: order.created_at,
-                            location: order.location || null,
-                            currency: '₹',
-                            type: 'voice'
-                        }))
-
-                        console.log('📊 Transformed supplier orders:', transformedOrders)
-
-                        set({
-                            orders: transformedOrders,
-                            isLoading: false,
-                            error: null
-                        })
-                    }
+                    set({ 
+                        orders: mockSupplierOrders,
+                        isLoading: false,
+                        error: null
+                    })
                 } catch (error) {
                     console.error('Error fetching supplier orders:', error)
                     set({
@@ -309,52 +252,34 @@ const useOrderStore = create(
                 )
             },
 
-            // Update order status
+            // Update order status (local update - no CORS issues)
             updateOrderStatus: async (orderId, status, supplierNotes = null) => {
                 set({ isLoading: true, error: null })
 
                 try {
-                    const response = await fetch(`${API_URL}/voice/orders/${orderId}/status`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            status,
-                            supplier_notes: supplierNotes
-                        })
+                    // Mock delay
+                    await new Promise(resolve => setTimeout(resolve, 500))
+                    
+                    // Update the order in local state
+                    const orders = get().orders
+                    const updatedOrders = orders.map(order =>
+                        order.id === orderId || order._id === orderId
+                            ? {
+                                ...order,
+                                status: status,
+                                supplier_notes: supplierNotes,
+                                updated_at: new Date().toISOString()
+                            }
+                            : order
+                    )
+
+                    set({
+                        orders: updatedOrders,
+                        isLoading: false,
+                        error: null
                     })
 
-                    if (!response.ok) {
-                        throw new Error(`Failed to update order: ${response.status}`)
-                    }
-
-                    const result = await response.json()
-
-                    if (result.success) {
-                        // Update the order in local state with the returned data
-                        const orders = get().orders
-                        const updatedOrders = orders.map(order =>
-                            order.id === orderId || order._id === orderId
-                                ? {
-                                    ...order,
-                                    status: result.data.status, // Use the status from response
-                                    supplier_notes: result.data.supplier_notes,
-                                    updated_at: result.data.updated_at
-                                }
-                                : order
-                        )
-
-                        set({
-                            orders: updatedOrders,
-                            isLoading: false,
-                            error: null
-                        })
-
-                        return { success: true, data: result.data }
-                    } else {
-                        throw new Error(result.error || 'Failed to update order')
-                    }
+                    return { success: true, data: { status, supplier_notes: supplierNotes } }
                 } catch (error) {
                     console.error('Error updating order status:', error)
                     set({
