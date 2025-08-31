@@ -246,5 +246,6 @@ This project was built for [Hackathon Name] to address critical challenges in st
 ---
 
 **VoiceCart** - Empowering street vendors with voice-native technology 🎤📦🚀
-#   T r i g g e r   d e p l o y m e n t  
+#   T r i g g e r   d e p l o y m e n t 
+ 
  
